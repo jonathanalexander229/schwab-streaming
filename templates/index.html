@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schwab Market Data Stream</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📈 Market Data Stream</h1>
+                <p>Real-time equity market data</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="status-indicator">
+                    <div class="status-dot" id="connectionStatus"></div>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+                <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+            </div>
+        </div>
+
+        <div class="add-symbol-section">
+            <h2>Add Stock Symbol</h2>
+            <div class="input-group">
+                <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)" maxlength="10">
+                <button class="btn btn-primary" onclick="app.addSymbol()">Add to Watchlist</button>
+            </div>
+            <div id="messageArea"></div>
+        </div>
+
+        <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2>📊 Your Watchlist</h2>
+            <div id="marketDataContainer" class="market-data-grid">
+                <div class="no-data">Add some stock symbols to start streaming market data!</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/market-data.js') }}"></script>
+</body>
+</html>

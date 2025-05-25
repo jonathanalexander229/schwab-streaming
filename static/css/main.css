@@ -1,0 +1,248 @@
+/* Main application styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f7fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    background: linear-gradient(135deg, #004B8D, #0066CC);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #f44336;
+    transition: background-color 0.3s ease;
+}
+
+.status-dot.connected {
+    background-color: #4caf50;
+}
+
+.logout-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 5px;
+    text-decoration: none;
+}
+
+.add-symbol-section {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.add-symbol-section h2 {
+    margin-bottom: 15px;
+    color: #004B8D;
+}
+
+.input-group {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.input-group input {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.btn-primary {
+    background-color: #004B8D;
+    color: white;
+}
+
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+}
+
+.stock-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.stock-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.stock-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.stock-symbol {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #004B8D;
+}
+
+.remove-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 5px;
+    border-radius: 50%;
+}
+
+.remove-btn:hover {
+    background-color: #f44336;
+    color: white;
+}
+
+.price-main {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.current-price {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #333;
+}
+
+.price-change {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.change-amount, .change-percent {
+    font-size: 1.1em;
+    font-weight: bold;
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+.positive {
+    background-color: #e8f5e8;
+    color: #2e7d32;
+}
+
+.negative {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.neutral {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+.price-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    font-size: 0.9em;
+}
+
+.price-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.price-label {
+    color: #666;
+    font-weight: 500;
+}
+
+.price-value {
+    font-weight: bold;
+    color: #333;
+}
+
+.timestamp {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 0.8em;
+    color: #999;
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+.flash {
+    animation: flashGreen 0.5s ease-in-out;
+}
+
+@keyframes flashGreen {
+    0% { background-color: #e8f5e8; }
+    50% { background-color: #c8e6c9; }
+    100% { background-color: #f8f9fa; }
+}
+
+@media (max-width: 768px) {
+    .container { padding: 10px; }
+    .header h1 { font-size: 2em; }
+    .input-group { flex-direction: column; }
+    .input-group input { min-width: auto; width: 100%; }
+    .market-data-grid { grid-template-columns: 1fr; }
+    .price-details { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schwab Market Data - Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">📈</div>
+        <h1>Schwab Market Data</h1>
+        <p class="subtitle">Real-time streaming market data</p>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <a href="{{ url_for('authenticate') }}" class="auth-btn">
+            🔐 Authenticate with Schwab
+        </a>
+        
+        <div class="features">
+            <h3>Features:</h3>
+            <ul>
+                <li>Real-time market data streaming</li>
+                <li>Live price updates with WebSockets</li>
+                <li>Custom watchlist management</li>
+                <li>OAuth 2.0 secure authentication</li>
+                <li>Mock data mode for testing</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
