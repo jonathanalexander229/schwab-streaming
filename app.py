@@ -1,16 +1,15 @@
-# app.py - Main Flask Application
+# app.py - Main Flask Application with Simple Authentication
 import os
 import json
 import logging
 import threading
 import time
 import sqlite3
-import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
-from auth import SchwabAuth
+from auth import get_schwab_client, get_schwab_streamer
 
 # Load environment variables
 load_dotenv()
@@ -41,8 +40,8 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Global variables
 market_data = {}
 watchlist = set()
-auth_handler = None
-streaming_active = False
+schwab_client = None
+schwab_streamer = None
 
 # Create required directories
 os.makedirs(Config.DATA_DIR, exist_ok=True)
@@ -78,69 +77,57 @@ def get_db_connection():
     conn.commit()
     return conn
 
-# Mock Data Generator
-class MockDataGenerator:
-    def __init__(self):
-        self.symbols = {}
-        self.running = False
+# Schwab streaming handler
+def schwab_message_handler(message):
+    """Handle incoming messages from Schwab stream"""
+    try:
+        data = json.loads(message)
         
-    def add_symbol(self, symbol):
-        if symbol not in self.symbols:
-            self.symbols[symbol] = {
-                'symbol': symbol,
-                'last_price': round(random.uniform(50, 300), 2),
-                'bid_price': 0,
-                'ask_price': 0,
-                'volume': random.randint(100000, 10000000),
-                'net_change': 0,
-                'net_change_percent': 0,
-                'high_price': 0,
-                'low_price': 0,
-                'timestamp': int(time.time() * 1000)
-            }
-    
-    def remove_symbol(self, symbol):
-        if symbol in self.symbols:
-            del self.symbols[symbol]
-    
-    def start_streaming(self):
-        if not self.running:
-            self.running = True
-            thread = threading.Thread(target=self._generate_data, daemon=True)
-            thread.start()
-            logger.info("Mock data generator started")
-    
-    def stop_streaming(self):
-        self.running = False
-    
-    def _generate_data(self):
-        while self.running:
-            for symbol in list(self.symbols.keys()):
-                if symbol in self.symbols:
-                    data = self.symbols[symbol]
-                    
-                    # Generate random price movement
-                    change = random.uniform(-2, 2)
-                    old_price = data['last_price']
-                    new_price = max(1.0, old_price * (1 + change / 100))
-                    
-                    # Update data
-                    data['last_price'] = round(new_price, 2)
-                    data['net_change'] = round(new_price - old_price, 2)
-                    data['net_change_percent'] = round((new_price - old_price) / old_price * 100, 2)
-                    data['bid_price'] = round(new_price - 0.01, 2)
-                    data['ask_price'] = round(new_price + 0.01, 2)
-                    data['volume'] += random.randint(1000, 50000)
-                    data['timestamp'] = int(time.time() * 1000)
-                    
-                    # Update high/low
-                    if data['high_price'] == 0 or new_price > data['high_price']:
-                        data['high_price'] = new_price
-                    if data['low_price'] == 0 or new_price < data['low_price']:
-                        data['low_price'] = new_price
+        # Skip heartbeat messages
+        if 'notify' in data and any('heartbeat' in item for item in data['notify']):
+            return
+        
+        # Handle service messages
+        if 'notify' in data:
+            for item in data['notify']:
+                if item.get('service') == 'ADMIN':
+                    logger.warning(f"Admin message: {item.get('content', {}).get('msg', 'Unknown')}")
+                    return
+        
+        # Process actual market data
+        if "data" not in data:
+            return
+
+        for item in data["data"]:
+            service = item.get("service")
+            if not service or "content" not in item:
+                continue
+            
+            timestamp = int(time.time() * 1000)
+            
+            # Process each content item
+            for content in item["content"]:
+                symbol = content.get("key")
+                if not symbol:
+                    continue
+
+                if service == "LEVELONE_EQUITIES":
+                    # Process level one equity data
+                    market_data_item = {
+                        'symbol': symbol,
+                        'last_price': content.get("1"),      # Last price
+                        'bid_price': content.get("2"),       # Bid price  
+                        'ask_price': content.get("3"),       # Ask price
+                        'volume': content.get("8"),          # Volume
+                        'high_price': content.get("12"),     # High price
+                        'low_price': content.get("13"),      # Low price
+                        'net_change': content.get("29"),     # Net change
+                        'net_change_percent': content.get("30"), # Net change percent
+                        'timestamp': timestamp
+                    }
                     
                     # Store globally
-                    market_data[symbol] = data
+                    market_data[symbol] = market_data_item
                     
                     # Save to database
                     try:
@@ -151,62 +138,21 @@ class MockDataGenerator:
                             (symbol, timestamp, last_price, bid_price, ask_price, volume, 
                              net_change, net_change_percent, high_price, low_price)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (symbol, data['timestamp'], data['last_price'], data['bid_price'],
-                              data['ask_price'], data['volume'], data['net_change'],
-                              data['net_change_percent'], data['high_price'], data['low_price']))
+                        ''', (symbol, timestamp, market_data_item['last_price'], market_data_item['bid_price'],
+                              market_data_item['ask_price'], market_data_item['volume'], market_data_item['net_change'],
+                              market_data_item['net_change_percent'], market_data_item['high_price'], market_data_item['low_price']))
                         conn.commit()
                         conn.close()
                     except Exception as e:
                         logger.error(f"Database error: {e}")
                     
                     # Emit to clients
-                    socketio.emit('market_data', {'symbol': symbol, 'data': data})
-            
-            time.sleep(1)
-
-# Initialize mock generator
-mock_generator = MockDataGenerator()
-
-# Schwab Integration (placeholder for real API)
-def initialize_schwab_streaming():
-    global streaming_active
-    try:
-        import schwabdev
+                    socketio.emit('market_data', {'symbol': symbol, 'data': market_data_item})
+                    logger.info(f"Updated market data for {symbol}: Last ${market_data_item.get('last_price', 'N/A')}")
         
-        if not auth_handler or not auth_handler.get_valid_token():
-            logger.warning("No valid Schwab token available")
-            return False
-        
-        streaming_active = True
-        logger.info("Schwab streaming would be initialized here")
-        return True
-        
-    except ImportError:
-        logger.info("schwabdev not available, using mock data")
-        return False
     except Exception as e:
-        logger.error(f"Schwab streaming error: {e}")
-        return False
-
-def start_token_refresh_task():
-    def refresh_loop():
-        while True:
-            try:
-                if auth_handler and auth_handler.refresh_token and auth_handler.token_expires_at:
-                    time_until_expiry = (auth_handler.token_expires_at - datetime.now()).total_seconds()
-                    if time_until_expiry < 600:  # 10 minutes
-                        logger.info("Auto-refreshing token...")
-                        auth_handler.refresh_access_token()
-                        logger.info("Token refreshed successfully")
-                
-                time.sleep(300)  # Check every 5 minutes
-            except Exception as e:
-                logger.error(f"Token refresh error: {e}")
-                time.sleep(300)
-    
-    thread = threading.Thread(target=refresh_loop, daemon=True)
-    thread.start()
-    logger.info("Token refresh task started")
+        logger.error(f"Error processing Schwab message: {e}")
+        logger.error(f"Problematic message: {message}")
 
 # Flask Routes
 @app.route('/')
@@ -221,49 +167,28 @@ def login():
 
 @app.route('/authenticate')
 def authenticate():
-    global auth_handler
+    """Authenticate with Schwab API"""
+    global schwab_client, schwab_streamer
     
     try:
-        auth_handler = SchwabAuth()
+        # Try to get Schwab client
+        schwab_client = get_schwab_client()
         
-        if auth_handler.load_tokens() and auth_handler.is_token_valid():
+        if schwab_client:
+            schwab_streamer = schwab_client.stream
             session['authenticated'] = True
             session.permanent = True
-            flash('Successfully authenticated with existing tokens!', 'success')
-            
-            if initialize_schwab_streaming():
-                flash('Schwab streaming initialized', 'info')
-                start_token_refresh_task()
-            else:
-                flash('Using mock data for demonstration', 'info')
-                mock_generator.start_streaming()
-            
-            return redirect(url_for('index'))
-        
-        if auth_handler.authenticate():
-            session['authenticated'] = True
-            session.permanent = True
-            flash('Successfully authenticated with Schwab!', 'success')
-            
-            if initialize_schwab_streaming():
-                flash('Schwab streaming initialized', 'info')
-                start_token_refresh_task()
-            else:
-                flash('Using mock data for demonstration', 'info')
-                mock_generator.start_streaming()
-            
-            return redirect(url_for('index'))
+            flash('Successfully connected to Schwab API!', 'success')
         else:
-            flash('Authentication failed. Using mock data.', 'warning')
-            mock_generator.start_streaming()
-            session['authenticated'] = True
-            return redirect(url_for('index'))
-            
+            session['authenticated'] = True  # Allow access anyway
+            flash('Could not connect to Schwab API. Check your credentials.', 'error')
+        
+        return redirect(url_for('index'))
+        
     except Exception as e:
         logger.error(f"Authentication error: {e}")
-        flash(f'Authentication error. Using mock data.', 'error')
-        mock_generator.start_streaming()
-        session['authenticated'] = True
+        session['authenticated'] = True  # Allow access anyway
+        flash(f'Authentication error: {e}', 'error')
         return redirect(url_for('index'))
 
 @app.route('/logout')
@@ -292,12 +217,14 @@ def add_to_watchlist():
         
         watchlist.add(symbol)
         
-        if streaming_active:
-            logger.info(f"Would subscribe to {symbol} via Schwab API")
-        else:
-            mock_generator.add_symbol(symbol)
-            if not mock_generator.running:
-                mock_generator.start_streaming()
+        # If we have Schwab streamer, subscribe to the symbol
+        if schwab_streamer:
+            try:
+                # Subscribe to level one equity quotes with specific fields
+                schwab_streamer.send(schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                logger.info(f"Subscribed to Schwab data for {symbol}")
+            except Exception as e:
+                logger.error(f"Error subscribing to {symbol}: {e}")
         
         return jsonify({'success': True, 'watchlist': list(watchlist)})
         
@@ -316,7 +243,6 @@ def remove_from_watchlist():
         
         if symbol in watchlist:
             watchlist.remove(symbol)
-            mock_generator.remove_symbol(symbol)
             
             if symbol in market_data:
                 del market_data[symbol]
@@ -338,20 +264,9 @@ def auth_status():
     is_authenticated = session.get('authenticated', False)
     return jsonify({
         'authenticated': is_authenticated,
-        'using_real_api': streaming_active,
-        'token_valid': auth_handler.is_token_valid() if auth_handler else False
+        'using_real_api': schwab_client is not None,
+        'has_streamer': schwab_streamer is not None
     })
-
-@app.route('/api/refresh-token', methods=['POST'])
-def refresh_token():
-    if not session.get('authenticated') or not auth_handler:
-        return jsonify({'error': 'Not authenticated'}), 401
-    
-    try:
-        auth_handler.refresh_access_token()
-        return jsonify({'success': True, 'message': 'Token refreshed'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 # WebSocket Events
 @socketio.on('connect')
@@ -378,12 +293,12 @@ def handle_add_symbol(data):
     if symbol and symbol not in watchlist:
         watchlist.add(symbol)
         
-        if streaming_active:
-            logger.info(f"Would subscribe to {symbol} via Schwab")
-        else:
-            mock_generator.add_symbol(symbol)
-            if not mock_generator.running:
-                mock_generator.start_streaming()
+        if schwab_streamer:
+            try:
+                schwab_streamer.send(schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                logger.info(f"Subscribed to {symbol} via Schwab WebSocket")
+            except Exception as e:
+                logger.error(f"Error subscribing to {symbol}: {e}")
         
         emit('watchlist_updated', {'watchlist': list(watchlist)}, broadcast=True)
 
@@ -396,7 +311,6 @@ def handle_remove_symbol(data):
     symbol = data.get('symbol', '').upper().strip()
     if symbol in watchlist:
         watchlist.remove(symbol)
-        mock_generator.remove_symbol(symbol)
         
         if symbol in market_data:
             del market_data[symbol]
@@ -406,113 +320,8 @@ def handle_remove_symbol(data):
 
 # Create static files and templates
 def create_static_files():
-    """Create CSS and JavaScript files."""
+    """Create CSS and JavaScript files"""
     
-    # Login CSS
-    login_css = """/* Login page styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.login-container {
-    background: white;
-    padding: 40px;
-    border-radius: 20px;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    max-width: 400px;
-    width: 90%;
-}
-
-.logo {
-    font-size: 3em;
-    margin-bottom: 20px;
-}
-
-h1 {
-    color: #004B8D;
-    margin-bottom: 10px;
-    font-size: 2em;
-}
-
-.subtitle {
-    color: #666;
-    margin-bottom: 30px;
-    font-size: 1.1em;
-}
-
-.auth-btn {
-    background: linear-gradient(135deg, #004B8D, #0066CC);
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    border-radius: 50px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-block;
-    margin: 10px 0;
-    transition: all 0.3s ease;
-}
-
-.auth-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(0, 75, 141, 0.3);
-}
-
-.features {
-    margin-top: 30px;
-    text-align: left;
-}
-
-.features h3 {
-    color: #004B8D;
-    margin-bottom: 15px;
-}
-
-.features ul {
-    list-style: none;
-    padding-left: 0;
-}
-
-.features li {
-    padding: 5px 0;
-    color: #666;
-}
-
-.features li:before {
-    content: "✓ ";
-    color: #4CAF50;
-    font-weight: bold;
-}
-
-.flash-messages {
-    margin-bottom: 20px;
-}
-
-.flash-message {
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 10px;
-}
-
-.flash-success { background-color: #d4edda; color: #155724; }
-.flash-error { background-color: #f8d7da; color: #721c24; }
-.flash-warning { background-color: #fff3cd; color: #856404; }
-.flash-info { background-color: #d1ecf1; color: #0c5460; }"""
-
     # Main CSS
     main_css = """/* Main application styles */
 * {
@@ -621,6 +430,8 @@ body {
     color: white;
 }
 
+.market-data-grid {
+    display: grid;
     gap: 20px;
     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
 }
@@ -769,6 +580,10 @@ body {
         this.socket = io();
         this.marketData = {};
         this.watchlist = new Set();
+        
+        // Set initial connection status
+        this.updateConnectionStatus(false);
+        
         this.initializeEventListeners();
         this.setupSocketHandlers();
         this.loadInitialData();
@@ -782,12 +597,12 @@ body {
 
     setupSocketHandlers() {
         this.socket.on('connect', () => {
-            console.log('Connected');
+            console.log('Connected to server');
             this.updateConnectionStatus(true);
         });
 
         this.socket.on('disconnect', () => {
-            console.log('Disconnected');
+            console.log('Disconnected from server');
             this.updateConnectionStatus(false);
         });
 
@@ -801,6 +616,10 @@ body {
 
         this.socket.on('symbol_removed', (data) => {
             this.removeSymbolFromDisplay(data.symbol);
+        });
+
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
         });
     }
 
@@ -917,7 +736,7 @@ body {
         setTimeout(() => card.classList.remove('flash'), 500);
         
         if (data.last_price != null) {
-            document.getElementById('price-' + symbol).textContent = ' + data.last_price.toFixed(2);
+            document.getElementById('price-' + symbol).textContent = '$' + data.last_price.toFixed(2);
         }
         
         if (data.net_change != null) {
@@ -926,7 +745,7 @@ body {
             const changeClass = change > 0 ? 'positive' : (change < 0 ? 'negative' : 'neutral');
             const changeSign = change > 0 ? '+' : '';
             
-            changeEl.textContent = changeSign + ' + change.toFixed(2);
+            changeEl.textContent = changeSign + '$' + change.toFixed(2);
             changeEl.className = 'change-amount ' + changeClass;
         }
         
@@ -940,10 +759,10 @@ body {
             percentEl.className = 'change-percent ' + percentClass;
         }
         
-        if (data.bid_price != null) document.getElementById('bid-' + symbol).textContent = ' + data.bid_price.toFixed(2);
-        if (data.ask_price != null) document.getElementById('ask-' + symbol).textContent = ' + data.ask_price.toFixed(2);
-        if (data.high_price != null) document.getElementById('high-' + symbol).textContent = ' + data.high_price.toFixed(2);
-        if (data.low_price != null) document.getElementById('low-' + symbol).textContent = ' + data.low_price.toFixed(2);
+        if (data.bid_price != null) document.getElementById('bid-' + symbol).textContent = '$' + data.bid_price.toFixed(2);
+        if (data.ask_price != null) document.getElementById('ask-' + symbol).textContent = '$' + data.ask_price.toFixed(2);
+        if (data.high_price != null) document.getElementById('high-' + symbol).textContent = '$' + data.high_price.toFixed(2);
+        if (data.low_price != null) document.getElementById('low-' + symbol).textContent = '$' + data.low_price.toFixed(2);
         if (data.volume != null) document.getElementById('volume-' + symbol).textContent = this.formatVolume(data.volume);
         
         if (data.timestamp) {
@@ -971,6 +790,13 @@ body {
     }
 
     loadInitialData() {
+        // Check connection status after a brief delay
+        setTimeout(() => {
+            if (this.socket.connected) {
+                this.updateConnectionStatus(true);
+            }
+        }, 100);
+
         fetch('/api/watchlist')
             .then(response => response.json())
             .then(data => {
@@ -978,6 +804,9 @@ body {
                     this.watchlist = new Set(data.watchlist);
                     data.watchlist.forEach(symbol => this.addPlaceholderCard(symbol));
                 }
+            })
+            .catch(error => {
+                console.error('Error loading watchlist:', error);
             });
 
         fetch('/api/market-data')
@@ -986,6 +815,9 @@ body {
                 Object.entries(data).forEach(([symbol, symbolData]) => {
                     this.updateMarketData(symbol, symbolData);
                 });
+            })
+            .catch(error => {
+                console.error('Error loading market data:', error);
             });
     }
 }
@@ -996,9 +828,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });"""
 
     # Save files
-    with open(os.path.join(Config.STATIC_DIR, 'css', 'login.css'), 'w') as f:
-        f.write(login_css)
-    
     with open(os.path.join(Config.STATIC_DIR, 'css', 'main.css'), 'w') as f:
         f.write(main_css)
     
@@ -1006,7 +835,7 @@ document.addEventListener('DOMContentLoaded', () => {
         f.write(market_js)
 
 def create_templates():
-    """Create clean HTML templates that reference external CSS/JS."""
+    """Create HTML templates"""
     
     # Login template
     login_html = '''<!DOCTYPE html>
@@ -1015,7 +844,53 @@ def create_templates():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schwab Market Data - Login</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .logo { font-size: 3em; margin-bottom: 20px; }
+        h1 { color: #004B8D; margin-bottom: 10px; font-size: 2em; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 1.1em; }
+        .auth-btn {
+            background: linear-gradient(135deg, #004B8D, #0066CC);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px 0;
+            transition: all 0.3s ease;
+        }
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 75, 141, 0.3);
+        }
+        .flash-messages { margin-bottom: 20px; }
+        .flash-message { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .flash-success { background-color: #d4edda; color: #155724; }
+        .flash-error { background-color: #f8d7da; color: #721c24; }
+        .flash-warning { background-color: #fff3cd; color: #856404; }
+        .flash-info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
 </head>
 <body>
     <div class="login-container">
@@ -1034,19 +909,8 @@ def create_templates():
         {% endwith %}
         
         <a href="{{ url_for('authenticate') }}" class="auth-btn">
-            🔐 Authenticate with Schwab
+            🔐 Connect to Schwab API
         </a>
-        
-        <div class="features">
-            <h3>Features:</h3>
-            <ul>
-                <li>Real-time market data streaming</li>
-                <li>Live price updates with WebSockets</li>
-                <li>Custom watchlist management</li>
-                <li>OAuth 2.0 secure authentication</li>
-                <li>Mock data mode for testing</li>
-            </ul>
-        </div>
     </div>
 </body>
 </html>'''
@@ -1077,13 +941,28 @@ def create_templates():
             </div>
         </div>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 20px;">
+                    {% for category, message in messages %}
+                        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
+                            {% if category == 'success' %}background-color: #d4edda; color: #155724;
+                            {% elif category == 'error' %}background-color: #f8d7da; color: #721c24;
+                            {% elif category == 'warning' %}background-color: #fff3cd; color: #856404;
+                            {% else %}background-color: #d1ecf1; color: #0c5460;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         <div class="add-symbol-section">
             <h2>Add Stock Symbol</h2>
             <div class="input-group">
                 <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)" maxlength="10">
                 <button class="btn btn-primary" onclick="app.addSymbol()">Add to Watchlist</button>
             </div>
-            <div id="messageArea"></div>
         </div>
 
         <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
@@ -1107,29 +986,59 @@ def create_templates():
 
 # Initialize application
 def initialize_app():
+    """Initialize the application"""
+    global schwab_client, schwab_streamer
+    
+    # Create static files and templates
     create_static_files()
     create_templates()
-    logger.info("Application initialized with external CSS/JS files")
+    
+    print("\n" + "="*60)
+    print("🚀 SCHWAB MARKET DATA STREAMING APP")
+    print("="*60)
+    print("Initializing Schwab connection...")
+    
+    # Try to connect to Schwab
+    schwab_client = get_schwab_client()
+    
+    if schwab_client:
+        schwab_streamer = schwab_client.stream
+        print("✅ Connected to Schwab API")
+        
+        # Start the streamer
+        try:
+            schwab_streamer.start(schwab_message_handler)
+            print("✅ Schwab streamer started")
+            
+            # Subscribe to a default symbol to keep the stream alive
+            # We'll subscribe to SPY to prevent "empty subscription" error
+            default_symbol = "SPY"
+            schwab_streamer.send(schwab_streamer.level_one_equities(default_symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+            watchlist.add(default_symbol)
+            print(f"✅ Subscribed to {default_symbol} to keep stream alive")
+            
+        except Exception as e:
+            print(f"⚠️  Could not start streamer: {e}")
+    else:
+        print("❌ Could not connect to Schwab API")
+        print("   Make sure SCHWAB_APP_KEY and SCHWAB_APP_SECRET are set in .env")
+    
+    print(f"🌐 Starting web server at http://localhost:{Config.PORT}")
+    print("📊 Add stock symbols to start streaming market data")
+    print("="*60)
+    
+    logger.info("Application initialized")
 
 # Main execution
 if __name__ == '__main__':
     try:
         initialize_app()
-        
-        print("\n" + "="*60)
-        print("🚀 SCHWAB MARKET DATA STREAMING APP")
-        print("="*60)
-        print(f"🌐 Open http://localhost:{Config.PORT} in your browser")
-        print("🔐 You'll be prompted to authenticate with Schwab")
-        print("📊 Add stock symbols to start streaming market data")
-        print("💡 Uses mock data if Schwab API not available")
-        print("🎨 Now with separated CSS and JavaScript files!")
-        print("="*60)
-        
         socketio.run(app, debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
         
     except KeyboardInterrupt:
         print("\n👋 Application stopped by user")
+        if schwab_streamer:
+            schwab_streamer.stop()
     except Exception as e:
         logger.error(f"Application error: {e}")
         print(f"❌ Error: {e}")

@@ -23,13 +23,28 @@
             </div>
         </div>
 
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 20px;">
+                    {% for category, message in messages %}
+                        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
+                            {% if category == 'success' %}background-color: #d4edda; color: #155724;
+                            {% elif category == 'error' %}background-color: #f8d7da; color: #721c24;
+                            {% elif category == 'warning' %}background-color: #fff3cd; color: #856404;
+                            {% else %}background-color: #d1ecf1; color: #0c5460;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
         <div class="add-symbol-section">
             <h2>Add Stock Symbol</h2>
             <div class="input-group">
                 <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)" maxlength="10">
                 <button class="btn btn-primary" onclick="app.addSymbol()">Add to Watchlist</button>
             </div>
-            <div id="messageArea"></div>
         </div>
 
         <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">

@@ -1,15 +1,17 @@
 # Schwab Market Data Streaming App
 
-A simple Python web application that streams real-time market data using the Charles Schwab API with OAuth 2.0 authentication.
+A Python web application that streams real-time market data using the Charles Schwab API with **manual OAuth 2.0 authentication** (matching the market depth app approach).
 
 ## 📁 Project Structure
 
 ```
 schwab-market-app/
-├── auth.py                    # OAuth authentication handler
+├── auth.py                    # OAuth authentication handler (manual flow)
+├── authenticate.py            # Standalone CLI authentication script
 ├── app.py                     # Main Flask application
 ├── requirements.txt           # Python dependencies
 ├── .env.example              # Environment configuration template
+├── schwab_tokens.json        # Token storage (auto-generated)
 ├── templates/                # HTML templates
 │   ├── login.html            # Login page
 │   └── index.html            # Main application
@@ -31,7 +33,7 @@ pip install -r requirements.txt
 ### 2. Configure Environment (Optional)
 ```bash
 cp .env.example .env
-# Edit .env with your Schwab API credentials
+# Edit .env with your Schwab API credentials (optional - works without them)
 ```
 
 ### 3. Run the Application
@@ -39,127 +41,188 @@ cp .env.example .env
 python app.py
 ```
 
-### 4. Open Browser
-Navigate to `http://localhost:5000`
+The app will prompt you to choose between:
+- **Schwab API** (real data - requires authentication)
+- **Mock data** (simulated data - no authentication needed)
 
-## 🔧 Getting Schwab API Credentials (Optional)
+### 4. Open Browser
+Navigate to `http://localhost:8000`
+
+## 🔧 Getting Schwab API Credentials
 
 1. Visit [https://developer.schwab.com/](https://developer.schwab.com/)
-2. Create a developer account
+2. Create a developer account and wait for approval
 3. Create a new **Individual Developer** application
-4. Set callback URL to: `https://127.0.0.1:8443/callback`
-5. Wait for approval (can take several days)
-6. Add your **App Key** and **App Secret** to `.env`
+4. **Important**: Set callback URL to: `https://127.0.0.1`
+5. Add your **App Key** and **App Secret** to `.env` file
+
+## 🔐 Authentication Flow (Built-in)
+
+When you run `python app.py`, the application will:
+
+1. **Check for existing tokens** - If you've authenticated before, it uses those
+2. **Try to refresh expired tokens** - Automatically refreshes if possible
+3. **Prompt for authentication choice** - If no valid tokens found:
+
+```bash
+================================================================================
+🚀 SCHWAB MARKET DATA STREAMING APP
+================================================================================
+Choose your data source:
+1. Schwab API (real market data - requires authentication)
+2. Mock data (simulated data - no authentication needed)
+================================================================================
+
+Enter your choice (1 or 2): 1
+```
+
+### If you choose Schwab API (Option 1):
+1. **Browser Opens**: Automatically opens Schwab login page
+2. **Login**: Enter your Schwab credentials  
+3. **Authorize**: Grant permissions to your app
+4. **Copy URL**: After authorization, copy the entire redirect URL
+5. **Paste URL**: Paste it into the terminal when prompted
+6. **Tokens Saved**: Authentication tokens are saved for future use
+
+### If you choose Mock Data (Option 2):
+- Immediately starts with realistic simulated market data
+- Perfect for testing and development
+- No authentication required
 
 ## 💡 Features
 
-- **OAuth 2.0 Authentication**: Secure login with Schwab
+- **Manual OAuth 2.0**: Simple copy/paste authentication flow
 - **Real-time Streaming**: Live market data via WebSockets  
 - **Mock Data Mode**: Works without API credentials
 - **Automatic Token Refresh**: Background token management
 - **Responsive Design**: Works on desktop and mobile
 - **Database Storage**: Historical data persistence
-- **Separated Assets**: Clean CSS/JS organization
-
-## 🎯 How It Works
-
-1. **Authentication**: Click "Authenticate with Schwab" 
-2. **Login**: Browser opens to Schwab login page
-3. **Authorization**: Grant permissions to your app
-4. **Streaming**: Add stock symbols to watch live data
-5. **Updates**: Real-time price changes via WebSocket
+- **CLI Authentication**: Standalone authentication script
 
 ## 🧪 Mock Data Mode
 
-If Schwab API credentials aren't configured, the app automatically uses mock data that simulates realistic market movements. Perfect for:
+If you don't authenticate with Schwab, the app automatically uses realistic mock data:
 
-- Testing the application
-- Development without API access  
-- Learning the OAuth flow
-- Demonstrating features
+- Simulates live price movements
+- Perfect for testing and development
+- No API credentials required
+- Full functionality demonstration
 
-## 📊 Technical Details
+## 📊 Usage Examples
 
-- **Flask** web framework with **SocketIO** for real-time updates
-- **SQLite** database for market data storage
-- **schwabdev** library for Schwab API integration
-- **Responsive HTML/CSS/JavaScript** frontend
-- **Background threading** for token refresh and data generation
-- **Modular asset structure** for maintainability
-
-## 🏃‍♂️ Quick Start Commands
-
+### Quick Start (Single Command)
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application  
+# One command does everything!
 python app.py
 
-# Open browser to http://localhost:5000
-# Click "Authenticate with Schwab" or use mock data
-# Add symbols like AAPL, MSFT, GOOGL
-# Watch real-time price updates!
+# Choose option 2 for mock data (no setup required)
+# Or choose option 1 for real Schwab data (requires API credentials)
 ```
 
-## 📋 File Descriptions
+### Example Session:
+```bash
+$ python app.py
 
-### Core Files
-- **`auth.py`**: Complete OAuth 2.0 implementation with token management
-- **`app.py`**: Main Flask application with routes, WebSocket handlers, and mock data
-- **`requirements.txt`**: Python dependencies
-- **`.env.example`**: Environment variables template
+================================================================================
+🚀 SCHWAB MARKET DATA STREAMING APP
+================================================================================
+Choose your data source:
+1. Schwab API (real market data - requires authentication)
+2. Mock data (simulated data - no authentication needed)
+================================================================================
 
-### Templates
-- **`templates/login.html`**: Clean login page with OAuth flow
-- **`templates/index.html`**: Main application interface
+Enter your choice (1 or 2): 2
 
-### Static Assets
-- **`static/css/login.css`**: Login page styling
-- **`static/css/main.css`**: Main application styling with responsive design
-- **`static/js/market-data.js`**: JavaScript functionality for real-time updates
+🎭 Using mock data mode
+🌐 Starting web server at http://localhost:8000
+📊 Add stock symbols to start streaming market data
+================================================================================
+```
 
 ## 🔒 Security Features
 
 - **Secure token storage** in local JSON file
+- **Manual URL verification** prevents automated attacks
 - **Automatic token refresh** before expiry
 - **Session management** with Flask sessions
-- **OAuth state validation** prevents attacks
-- **Environment-based configuration**
+- **OAuth state validation** prevents CSRF attacks
+
+## 🛠️ Technical Details
+
+- **Flask** web framework with **SocketIO** for real-time updates
+- **SQLite** database for market data storage
+- **Manual OAuth flow** matching market depth app approach
+- **schwabdev** library for Schwab API integration
+- **Background threading** for token refresh and data generation
+
+## 📋 File Descriptions
+
+### Core Files
+- **`auth.py`**: OAuth 2.0 implementation with manual URL flow
+- **`app.py`**: Main Flask application with integrated authentication
+- **`.env.example`**: Environment variables template
+
+### Authentication Files
+- **`schwab_tokens.json`**: Automatically created token storage
+- **`.env`**: Your API credentials (create from .env.example)
+
+## 🔧 Configuration
+
+### Required Environment Variables
+```bash
+# Schwab API Credentials
+SCHWAB_APP_KEY=your_app_key_here
+SCHWAB_APP_SECRET=your_app_secret_here
+
+# Callback URL (must match your Schwab app settings)
+SCHWAB_CALLBACK_URL=https://127.0.0.1
+
+# Optional Flask settings
+FLASK_SECRET_KEY=your_secret_key_here
+FLASK_DEBUG=True
+```
+
+### Schwab Developer App Settings
+- **App Type**: Individual Developer
+- **Callback URL**: `https://127.0.0.1` (exactly)
+- **Scopes**: readonly (for market data)
 
 ## ⚠️ Important Notes
 
-- App works with or without Schwab API credentials
-- Market data is simulated if API not available
-- Tokens are stored locally and auto-refreshed
-- Use `Ctrl+C` to stop the server
-- All styling is in separate CSS files for easy customization
+- **Callback URL**: Must be exactly `https://127.0.0.1` in both your Schwab app settings and .env file
+- **Manual Process**: You'll need to copy/paste the redirect URL (this is intentional for security)
+- **Token Persistence**: Tokens are saved locally and auto-refreshed
+- **Mock Fallback**: App works with or without real authentication
+- **No Callback Server**: Unlike the original version, no local server needed for callbacks
 
-## 🤝 Usage
+## 🤝 Comparison with Market Depth App
 
-This is a complete, working example of:
-- OAuth 2.0 implementation with Schwab
-- Real-time data streaming with WebSockets
-- Professional web application structure
-- Separated concerns (HTML, CSS, JS, Python)
-- Error handling and fallback modes
+This streaming app now uses the **exact same authentication approach** as the market depth app:
 
-Perfect for learning or as a foundation for larger trading applications!
+| Feature | Market Depth App | Streaming App (Updated) |
+|---------|------------------|-------------------------|
+| OAuth Flow | Manual copy/paste | ✅ Manual copy/paste |
+| Callback URL | `https://127.0.0.1` | ✅ `https://127.0.0.1` |
+| Browser Opening | Automatic | ✅ Automatic |
+| URL Verification | Manual paste | ✅ Manual paste |
+| Token Storage | JSON file | ✅ JSON file |
+| CLI Authentication | Built-in | ✅ Separate script |
 
----
+## 🚀 Quick Commands
 
-## 🔧 Development Notes
+```bash
+# Run the application (choose authentication in the prompt)
+python app.py
 
-### Adding New Styles
-Edit `static/css/main.css` or `static/css/login.css` directly - no need to restart the Python server.
+# That's it! Everything is handled in one command.
+```
 
-### Modifying JavaScript
-Edit `static/js/market-data.js` for client-side functionality changes.
+## 🎯 Perfect For
 
-### Template Updates
-Modify `templates/login.html` or `templates/index.html` for structural changes.
+- Learning OAuth 2.0 implementation
+- Building trading applications
+- Real-time data streaming projects
+- Schwab API integration examples
+- Secure authentication patterns
 
-### Python Logic
-Edit `app.py` for server-side functionality or `auth.py` for authentication logic.
-
-This modular structure makes it easy to work on different aspects of the application independently!
+The manual authentication flow provides better security and matches the proven approach used in the market depth application!

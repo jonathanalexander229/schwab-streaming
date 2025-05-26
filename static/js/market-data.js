@@ -3,6 +3,10 @@ class MarketDataApp {
         this.socket = io();
         this.marketData = {};
         this.watchlist = new Set();
+        
+        // Set initial connection status
+        this.updateConnectionStatus(false);
+        
         this.initializeEventListeners();
         this.setupSocketHandlers();
         this.loadInitialData();
@@ -16,12 +20,12 @@ class MarketDataApp {
 
     setupSocketHandlers() {
         this.socket.on('connect', () => {
-            console.log('Connected');
+            console.log('Connected to server');
             this.updateConnectionStatus(true);
         });
 
         this.socket.on('disconnect', () => {
-            console.log('Disconnected');
+            console.log('Disconnected from server');
             this.updateConnectionStatus(false);
         });
 
@@ -35,6 +39,10 @@ class MarketDataApp {
 
         this.socket.on('symbol_removed', (data) => {
             this.removeSymbolFromDisplay(data.symbol);
+        });
+
+        this.socket.on('error', (error) => {
+            console.error('Socket error:', error);
         });
     }
 
@@ -151,7 +159,7 @@ class MarketDataApp {
         setTimeout(() => card.classList.remove('flash'), 500);
         
         if (data.last_price != null) {
-            document.getElementById('price-' + symbol).textContent = ' + data.last_price.toFixed(2);
+            document.getElementById('price-' + symbol).textContent = '$' + data.last_price.toFixed(2);
         }
         
         if (data.net_change != null) {
@@ -160,7 +168,7 @@ class MarketDataApp {
             const changeClass = change > 0 ? 'positive' : (change < 0 ? 'negative' : 'neutral');
             const changeSign = change > 0 ? '+' : '';
             
-            changeEl.textContent = changeSign + ' + change.toFixed(2);
+            changeEl.textContent = changeSign + '$' + change.toFixed(2);
             changeEl.className = 'change-amount ' + changeClass;
         }
         
@@ -174,10 +182,10 @@ class MarketDataApp {
             percentEl.className = 'change-percent ' + percentClass;
         }
         
-        if (data.bid_price != null) document.getElementById('bid-' + symbol).textContent = ' + data.bid_price.toFixed(2);
-        if (data.ask_price != null) document.getElementById('ask-' + symbol).textContent = ' + data.ask_price.toFixed(2);
-        if (data.high_price != null) document.getElementById('high-' + symbol).textContent = ' + data.high_price.toFixed(2);
-        if (data.low_price != null) document.getElementById('low-' + symbol).textContent = ' + data.low_price.toFixed(2);
+        if (data.bid_price != null) document.getElementById('bid-' + symbol).textContent = '$' + data.bid_price.toFixed(2);
+        if (data.ask_price != null) document.getElementById('ask-' + symbol).textContent = '$' + data.ask_price.toFixed(2);
+        if (data.high_price != null) document.getElementById('high-' + symbol).textContent = '$' + data.high_price.toFixed(2);
+        if (data.low_price != null) document.getElementById('low-' + symbol).textContent = '$' + data.low_price.toFixed(2);
         if (data.volume != null) document.getElementById('volume-' + symbol).textContent = this.formatVolume(data.volume);
         
         if (data.timestamp) {
@@ -205,6 +213,13 @@ class MarketDataApp {
     }
 
     loadInitialData() {
+        // Check connection status after a brief delay
+        setTimeout(() => {
+            if (this.socket.connected) {
+                this.updateConnectionStatus(true);
+            }
+        }, 100);
+
         fetch('/api/watchlist')
             .then(response => response.json())
             .then(data => {
@@ -212,6 +227,9 @@ class MarketDataApp {
                     this.watchlist = new Set(data.watchlist);
                     data.watchlist.forEach(symbol => this.addPlaceholderCard(symbol));
                 }
+            })
+            .catch(error => {
+                console.error('Error loading watchlist:', error);
             });
 
         fetch('/api/market-data')
@@ -220,6 +238,9 @@ class MarketDataApp {
                 Object.entries(data).forEach(([symbol, symbolData]) => {
                     this.updateMarketData(symbol, symbolData);
                 });
+            })
+            .catch(error => {
+                console.error('Error loading market data:', error);
             });
     }
 }
