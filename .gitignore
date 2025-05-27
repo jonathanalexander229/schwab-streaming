@@ -1,3 +1,5 @@
 .env
 data/*
 tokens.json
+schwab_tokens.json
+watchlist.json

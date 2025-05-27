@@ -1,4 +1,4 @@
-# app.py - Main Flask Application with Simple Authentication
+# app.py - Main Flask Application with Watchlist Persistence
 import os
 import json
 import logging
@@ -48,6 +48,37 @@ os.makedirs(Config.DATA_DIR, exist_ok=True)
 os.makedirs(Config.TEMPLATES_DIR, exist_ok=True)
 os.makedirs(os.path.join(Config.STATIC_DIR, 'css'), exist_ok=True)
 os.makedirs(os.path.join(Config.STATIC_DIR, 'js'), exist_ok=True)
+
+# Watchlist persistence functions
+def load_watchlist_from_storage():
+    """Load watchlist from JSON file"""
+    global watchlist
+    watchlist_file = os.path.join(Config.BASE_DIR, 'watchlist.json')
+    
+    try:
+        if os.path.exists(watchlist_file):
+            with open(watchlist_file, 'r') as f:
+                data = json.load(f)
+                watchlist = set(data.get('symbols', []))
+                print(f"📋 Loaded {len(watchlist)} symbols from watchlist: {list(watchlist)}")
+        else:
+            watchlist = set()
+            print("📋 No existing watchlist found, starting fresh")
+    except Exception as e:
+        print(f"⚠️  Error loading watchlist: {e}")
+        watchlist = set()
+
+def save_watchlist_to_storage():
+    """Save watchlist to JSON file"""
+    watchlist_file = os.path.join(Config.BASE_DIR, 'watchlist.json')
+    
+    try:
+        data = {'symbols': list(watchlist)}
+        with open(watchlist_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"💾 Saved watchlist: {list(watchlist)}")
+    except Exception as e:
+        logger.error(f"⚠️  Error saving watchlist: {e}")
 
 # Database setup
 def get_db_connection():
@@ -216,6 +247,7 @@ def add_to_watchlist():
             return jsonify({'error': 'Symbol is required'}), 400
         
         watchlist.add(symbol)
+        save_watchlist_to_storage()  # Save to persistent storage
         
         # If we have Schwab streamer, subscribe to the symbol
         if schwab_streamer:
@@ -243,6 +275,7 @@ def remove_from_watchlist():
         
         if symbol in watchlist:
             watchlist.remove(symbol)
+            save_watchlist_to_storage()  # Save to persistent storage
             
             if symbol in market_data:
                 del market_data[symbol]
@@ -292,6 +325,7 @@ def handle_add_symbol(data):
     symbol = data.get('symbol', '').upper().strip()
     if symbol and symbol not in watchlist:
         watchlist.add(symbol)
+        save_watchlist_to_storage()  # Save to persistent storage
         
         if schwab_streamer:
             try:
@@ -311,6 +345,7 @@ def handle_remove_symbol(data):
     symbol = data.get('symbol', '').upper().strip()
     if symbol in watchlist:
         watchlist.remove(symbol)
+        save_watchlist_to_storage()  # Save to persistent storage
         
         if symbol in market_data:
             del market_data[symbol]
@@ -987,7 +1022,7 @@ def create_templates():
 # Initialize application
 def initialize_app():
     """Initialize the application"""
-    global schwab_client, schwab_streamer
+    global schwab_client, schwab_streamer, watchlist
     
     # Create static files and templates
     create_static_files()
@@ -997,6 +1032,9 @@ def initialize_app():
     print("🚀 SCHWAB MARKET DATA STREAMING APP")
     print("="*60)
     print("Initializing Schwab connection...")
+    
+    # FIRST: Load existing watchlist from storage
+    load_watchlist_from_storage()
     
     # Try to connect to Schwab
     schwab_client = get_schwab_client()
@@ -1010,12 +1048,17 @@ def initialize_app():
             schwab_streamer.start(schwab_message_handler)
             print("✅ Schwab streamer started")
             
-            # Subscribe to a default symbol to keep the stream alive
-            # We'll subscribe to SPY to prevent "empty subscription" error
-            default_symbol = "SPY"
-            schwab_streamer.send(schwab_streamer.level_one_equities(default_symbol, "0,1,2,3,4,5,8,12,13,29,30"))
-            watchlist.add(default_symbol)
-            print(f"✅ Subscribed to {default_symbol} to keep stream alive")
+            # If watchlist is empty, add SPY to prevent "empty subscription" error
+            # if not watchlist:
+            #     default_symbol = "SPY"
+            #     watchlist.add(default_symbol)
+            #     save_watchlist_to_storage()
+            #     print(f"✅ Added {default_symbol} to keep stream alive")
+            
+            # Subscribe to all symbols in watchlist
+            for symbol in watchlist:
+                schwab_streamer.send(schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                print(f"✅ Subscribed to {symbol}")
             
         except Exception as e:
             print(f"⚠️  Could not start streamer: {e}")
