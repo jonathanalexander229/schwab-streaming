@@ -192,21 +192,6 @@ FLASK_DEBUG=True
 - **Callback URL**: Must be exactly `https://127.0.0.1` in both your Schwab app settings and .env file
 - **Manual Process**: You'll need to copy/paste the redirect URL (this is intentional for security)
 - **Token Persistence**: Tokens are saved locally and auto-refreshed
-- **Mock Fallback**: App works with or without real authentication
-- **No Callback Server**: Unlike the original version, no local server needed for callbacks
-
-## 🤝 Comparison with Market Depth App
-
-This streaming app now uses the **exact same authentication approach** as the market depth app:
-
-| Feature | Market Depth App | Streaming App (Updated) |
-|---------|------------------|-------------------------|
-| OAuth Flow | Manual copy/paste | ✅ Manual copy/paste |
-| Callback URL | `https://127.0.0.1` | ✅ `https://127.0.0.1` |
-| Browser Opening | Automatic | ✅ Automatic |
-| URL Verification | Manual paste | ✅ Manual paste |
-| Token Storage | JSON file | ✅ JSON file |
-| CLI Authentication | Built-in | ✅ Separate script |
 
 ## 🚀 Quick Commands
 
