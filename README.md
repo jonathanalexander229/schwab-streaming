@@ -76,18 +76,13 @@ Choose your data source:
 Enter your choice (1 or 2): 1
 ```
 
-### If you choose Schwab API (Option 1):
+### If you choose Schwab API :
 1. **Browser Opens**: Automatically opens Schwab login page
 2. **Login**: Enter your Schwab credentials  
 3. **Authorize**: Grant permissions to your app
 4. **Copy URL**: After authorization, copy the entire redirect URL
 5. **Paste URL**: Paste it into the terminal when prompted
 6. **Tokens Saved**: Authentication tokens are saved for future use
-
-### If you choose Mock Data (Option 2):
-- Immediately starts with realistic simulated market data
-- Perfect for testing and development
-- No authentication required
 
 ## 💡 Features
 
