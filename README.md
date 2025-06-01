@@ -188,6 +188,19 @@ FLASK_DEBUG=True
 - **Manual Process**: You'll need to copy/paste the redirect URL (this is intentional for security)
 - **Token Persistence**: Tokens are saved locally and auto-refreshed
 
+## 🤝 Comparison with Market Depth App
+
+This streaming app now uses the **exact same authentication approach** as the market depth app:
+
+| Feature | Market Depth App | Streaming App (Updated) |
+|---------|------------------|-------------------------|
+| OAuth Flow | Manual copy/paste | ✅ Manual copy/paste |
+| Callback URL | `https://127.0.0.1` | ✅ `https://127.0.0.1` |
+| Browser Opening | Automatic | ✅ Automatic |
+| URL Verification | Manual paste | ✅ Manual paste |
+| Token Storage | JSON file | ✅ JSON file |
+| CLI Authentication | Built-in | ✅ Separate script |
+
 ## 🚀 Quick Commands
 
 ```bash
@@ -196,13 +209,8 @@ python app.py
 
 # That's it! Everything is handled in one command.
 ```
+## Architecture Diagram
 
-## 🎯 Perfect For
+![Schwab Streaming Architecture](docs/schwab-streaming-architecture.png)
 
-- Learning OAuth 2.0 implementation
-- Building trading applications
-- Real-time data streaming projects
-- Schwab API integration examples
-- Secure authentication patterns
-
-The manual authentication flow provides better security and matches the proven approach used in the market depth application!
+*Real-time equity streaming data flow and component relationships*
