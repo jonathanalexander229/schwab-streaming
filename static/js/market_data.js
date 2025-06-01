@@ -5,6 +5,7 @@ class MarketDataApp {
         this.marketData = {};
         this.watchlist = new Set();
         this.isMockMode = false;
+        this.connectionStatusInitialized = false;
         
         // Set initial connection status
         this.updateConnectionStatus(false);
@@ -12,7 +13,6 @@ class MarketDataApp {
         this.initializeEventListeners();
         this.setupSocketHandlers();
         this.loadInitialData();
-        this.checkMockMode();
     }
 
     initializeEventListeners() {
@@ -24,8 +24,10 @@ class MarketDataApp {
     setupSocketHandlers() {
         this.socket.on('connect', () => {
             console.log('Connected to server');
-            this.updateConnectionStatus(true);
-            this.checkMockMode();
+            // Check mock mode first, then update connection status
+            this.checkMockMode().then(() => {
+                this.updateConnectionStatus(true);
+            });
         });
 
         this.socket.on('disconnect', () => {
@@ -42,6 +44,8 @@ class MarketDataApp {
                 if (data.is_mock !== undefined) {
                     this.isMockMode = data.is_mock;
                     this.updateMockModeUI();
+                    // Update connection status with current mock mode
+                    this.updateConnectionStatus(this.socket.connected);
                 }
             } else {
                 console.log('Filtered out invalid symbol:', data.symbol);
@@ -86,14 +90,24 @@ class MarketDataApp {
         try {
             const response = await fetch('/api/auth-status');
             const data = await response.json();
+            
+            console.log('Auth status response:', data);
+            
             this.isMockMode = data.mock_mode || false;
+            console.log('Mock mode set to:', this.isMockMode);
+            
             this.updateMockModeUI();
+            
+            return data;
         } catch (error) {
             console.error('Failed to check mock mode:', error);
+            return null;
         }
     }
 
     updateMockModeUI() {
+        console.log('Updating mock mode UI, isMockMode:', this.isMockMode);
+        
         // Update mock mode banner
         const mockBanner = document.getElementById('mockModeBanner');
         if (mockBanner) {
@@ -275,6 +289,8 @@ class MarketDataApp {
     }
 
     updateConnectionStatus(connected) {
+        console.log('Updating connection status:', { connected, isMockMode: this.isMockMode });
+        
         const statusDot = document.getElementById('connectionStatus');
         const statusText = document.getElementById('connectionText');
         
@@ -295,6 +311,8 @@ class MarketDataApp {
                 statusText.textContent = 'Disconnected';
             }
         }
+        
+        this.connectionStatusInitialized = true;
     }
 
     addSymbol() {
@@ -474,17 +492,18 @@ class MarketDataApp {
         return volume.toString();
     }
 
-    loadInitialData() {
-        // Check connection status after a brief delay
+    async loadInitialData() {
+        // First check mock mode
+        const authData = await this.checkMockMode();
+        
+        // Then update connection status after a brief delay to ensure socket is ready
         setTimeout(() => {
             if (this.socket.connected) {
                 this.updateConnectionStatus(true);
             }
-        }, 100);
+        }, 500);
 
-        // Load initial auth status and mock mode
-        this.checkMockMode();
-
+        // Load watchlist
         fetch('/api/watchlist')
             .then(response => response.json())
             .then(data => {
@@ -499,9 +518,12 @@ class MarketDataApp {
                 console.error('Error loading watchlist:', error);
             });
 
+        // Load market data
         fetch('/api/market-data')
             .then(response => response.json())
             .then(data => {
+                console.log('Market data response:', data);
+                
                 // Handle the market data response properly
                 if (data.market_data) {
                     Object.entries(data.market_data).forEach(([symbol, symbolData]) => {
@@ -515,6 +537,8 @@ class MarketDataApp {
                 if (data.is_mock_mode !== undefined) {
                     this.isMockMode = data.is_mock_mode;
                     this.updateMockModeUI();
+                    // Update connection status with current mock mode
+                    this.updateConnectionStatus(this.socket.connected);
                 }
             })
             .catch(error => {
