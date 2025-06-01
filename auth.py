@@ -3,11 +3,19 @@ import os
 import dotenv
 import schwabdev
 
-def get_schwab_client():
+def get_schwab_client(use_mock=False):
     """
-    Get an authenticated Schwab client using the schwabdev library.
-    This matches exactly how the market depth app handles authentication.
+    Initialize and return a Schwab client for API access.
+    If `use_mock` is True, it will return a mock client instead.
+    This is useful for testing without hitting the real API.
+    Returns:    
+        schwabdev.Client or MockSchwabClient: The Schwab client instance.
     """
+    if use_mock or os.getenv('USE_MOCK_DATA', 'false').lower() == 'true':
+        from mock_data import MockSchwabClient
+        print("🎭 Using mock Schwab client")
+        return MockSchwabClient()
+    
     try:
         # Load environment variables
         dotenv.load_dotenv()
@@ -21,7 +29,6 @@ def get_schwab_client():
         print("🔐 Connecting to Schwab API...")
         
         # Create client - this will handle authentication automatically
-        # including prompting for manual URL if needed
         client = schwabdev.Client(app_key, app_secret)
         
         print("✅ Connected to Schwab API")
@@ -34,6 +41,8 @@ def get_schwab_client():
 def get_schwab_streamer():
     """
     Get the Schwab streamer object for real-time data.
+    Returns:
+        schwabdev.Streamer: The Schwab streamer instance if connected, otherwise None.
     """
     client = get_schwab_client()
     if client:

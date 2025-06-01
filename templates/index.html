@@ -5,14 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schwab Market Data Stream</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mock_indicators.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
 </head>
 <body>
+    <!-- PROMINENT MOCK MODE BANNER -->
+    <div id="mockModeBanner" class="mock-mode-banner hidden">
+        <div class="mock-banner-content">
+            <span class="mock-icon">🎭</span>
+            <span class="mock-text">MOCK DATA MODE</span>
+            <span class="mock-description">Simulated market data for testing and development</span>
+            <button class="mock-banner-close" onclick="hideMockBanner()">×</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <div>
                 <h1>📈 Market Data Stream</h1>
                 <p>Real-time equity market data</p>
+                <!-- Data source indicator in header -->
+                <div id="dataSourceIndicator" class="data-source-indicator hidden">
+                    <span id="dataSourceIcon">🎭</span>
+                    <span id="dataSourceText">MOCK DATA</span>
+                </div>
             </div>
             <div style="display: flex; align-items: center; gap: 20px;">
                 <div class="status-indicator">
@@ -24,15 +40,12 @@
             </div>
         </div>
 
+        <!-- Flash messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div style="margin-bottom: 20px;">
                     {% for category, message in messages %}
-                        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
-                            {% if category == 'success' %}background-color: #d4edda; color: #155724;
-                            {% elif category == 'error' %}background-color: #f8d7da; color: #721c24;
-                            {% elif category == 'warning' %}background-color: #fff3cd; color: #856404;
-                            {% else %}background-color: #d1ecf1; color: #0c5460;{% endif %}">
+                        <div class="flash-message flash-{{ category }}">
                             {{ message }}
                         </div>
                     {% endfor %}
@@ -45,11 +58,26 @@
             <div class="input-group">
                 <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)" maxlength="10">
                 <button class="btn btn-primary" onclick="app.addSymbol()">Add to Watchlist</button>
+                <!-- Mock mode test button -->
+                <button id="mockTestBtn" class="btn btn-secondary hidden" onclick="triggerMockEvent()">🎯 Test Market Event</button>
             </div>
         </div>
 
         <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
             <h2>📊 Your Watchlist</h2>
+            <!-- Data source info -->
+            <div id="watchlistInfo" class="watchlist-info">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="dataSourceBadge" class="data-source-badge hidden">
+                        <span class="badge-icon">🎭</span>
+                        <span class="badge-text">MOCK</span>
+                    </span>
+                    <span id="lastUpdateTime" class="last-update"></span>
+                </div>
+                <div style="font-size: 0.9em; color: #666;">
+                    Valid symbols: 1-5 letters (e.g., AAPL, MSFT, SPY)
+                </div>
+            </div>
             <div id="marketDataContainer" class="market-data-grid">
                 <div class="no-data">Add some stock symbols to start streaming market data!</div>
             </div>
