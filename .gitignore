@@ -1,5 +1,7 @@
 .env
 data/*
+__pycache__/*
+.DS_Store
 tokens.json
 schwab_tokens.json
 watchlist.json

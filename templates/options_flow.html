@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Flow Monitor - Schwab Market Data</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/options_flow.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📊 Options Flow Monitor</h1>
+                <p>Real-time delta × volume analysis</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="status-indicator">
+                    <div class="status-dot" id="connectionStatus"></div>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+                <a href="{{ url_for('index') }}" class="nav-btn">📈 Market Data</a>
+                <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div style="margin-bottom: 20px;">
+                    {% for category, message in messages %}
+                        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
+                            {% if category == 'success' %}background-color: #d4edda; color: #155724;
+                            {% elif category == 'error' %}background-color: #f8d7da; color: #721c24;
+                            {% elif category == 'warning' %}background-color: #fff3cd; color: #856404;
+                            {% else %}background-color: #d1ecf1; color: #0c5460;{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Symbol Selection -->
+        <div class="symbol-section">
+            <h2>📋 Select Symbol</h2>
+            <div class="input-group">
+                <input type="text" id="symbolInput" placeholder="Enter symbol (e.g., SPY, QQQ, AAPL)" maxlength="10" value="{{ current_symbol }}">
+                <button class="btn btn-primary" onclick="changeSymbol()">Change Symbol</button>
+            </div>
+        </div>
+
+        <!-- Current Status -->
+        <div class="status-grid">
+            <div class="status-card sentiment-card" id="sentimentCard">
+                <div class="status-label">Market Sentiment</div>
+                <div class="status-value" id="sentimentValue">-</div>
+                <div class="status-detail" id="sentimentDetail">Waiting for data...</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Net Delta</div>
+                <div class="status-value" id="netDeltaValue">-</div>
+                <div class="status-detail" id="netDeltaDetail">Call Δ×Vol - Put Δ×Vol</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Delta Ratio</div>
+                <div class="status-value" id="deltaRatioValue">-</div>
+                <div class="status-detail">Call/Put Delta Volume</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Underlying Price</div>
+                <div class="status-value" id="underlyingValue">-</div>
+                <div class="status-detail" id="marketStatus">Market Status</div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <!-- Main Delta Volume Chart -->
+            <div class="chart-container">
+                <h3>Delta × Volume Flow</h3>
+                <canvas id="deltaVolumeChart"></canvas>
+            </div>
+
+            <!-- Net Delta Chart -->
+            <div class="chart-container half-width">
+                <h3>Net Delta Trend</h3>
+                <canvas id="netDeltaChart"></canvas>
+            </div>
+
+            <!-- Volume Comparison Chart -->
+            <div class="chart-container half-width">
+                <h3>Volume Comparison</h3>
+                <canvas id="volumeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Technical Indicators -->
+        <div class="indicators-section">
+            <h3>📈 Technical Indicators</h3>
+            <div class="indicators-grid">
+                <div class="indicator-card">
+                    <div class="indicator-label">Momentum</div>
+                    <div class="indicator-value" id="momentumValue">-</div>
+                    <div class="indicator-description">Rate of change in net delta</div>
+                </div>
+                <div class="indicator-card">
+                    <div class="indicator-label">Volatility</div>
+                    <div class="indicator-value" id="volatilityValue">-</div>
+                    <div class="indicator-description">Standard deviation of net delta</div>
+                </div>
+                <div class="indicator-card">
+                    <div class="indicator-label">Trend Strength</div>
+                    <div class="indicator-value" id="trendValue">-</div>
+                    <div class="indicator-description">Correlation with time</div>
+                </div>
+                <div class="indicator-card">
+                    <div class="indicator-label">Data Quality</div>
+                    <div class="indicator-value" id="qualityValue">-</div>
+                    <div class="indicator-description">Success rate of data fetches</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Data Display -->
+        <div class="data-section">
+            <h3>📊 Current Data</h3>
+            <div class="data-grid">
+                <div class="data-item">
+                    <span class="data-label">Call Δ×Volume:</span>
+                    <span class="data-value" id="callDeltaVolValue">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Put Δ×Volume:</span>
+                    <span class="data-value" id="putDeltaVolValue">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Call Volume:</span>
+                    <span class="data-value" id="callVolumeValue">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Put Volume:</span>
+                    <span class="data-value" id="putVolumeValue">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Last Update:</span>
+                    <span class="data-value" id="lastUpdateValue">-</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Data Fetches:</span>
+                    <span class="data-value" id="fetchCountValue">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/options_flow.js') }}"></script>
+</body>
+</html>
