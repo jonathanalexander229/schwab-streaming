@@ -6,15 +6,30 @@
     <title>Options Flow Monitor - Schwab Market Data</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/options_flow.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mock_indicators.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
 <body>
+    <!-- MOCK MODE BANNER -->
+    <div id="mockModeBanner" class="mock-mode-banner hidden">
+        <div class="mock-banner-content">
+            <span class="mock-icon">🎭</span>
+            <span class="mock-text">MOCK OPTIONS DATA</span>
+            <span class="mock-description">Simulated options flow for testing</span>
+            <button class="mock-banner-close" onclick="hideMockBanner()">×</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <div>
                 <h1>📊 Options Flow Monitor</h1>
                 <p>Real-time delta × volume analysis</p>
+                <div id="dataSourceIndicator" class="data-source-indicator hidden">
+                    <span id="dataSourceIcon">🎭</span>
+                    <span id="dataSourceText">MOCK DATA</span>
+                </div>
             </div>
             <div style="display: flex; align-items: center; gap: 20px;">
                 <div class="status-indicator">
@@ -30,11 +45,7 @@
             {% if messages %}
                 <div style="margin-bottom: 20px;">
                     {% for category, message in messages %}
-                        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
-                            {% if category == 'success' %}background-color: #d4edda; color: #155724;
-                            {% elif category == 'error' %}background-color: #f8d7da; color: #721c24;
-                            {% elif category == 'warning' %}background-color: #fff3cd; color: #856404;
-                            {% else %}background-color: #d1ecf1; color: #0c5460;{% endif %}">
+                        <div class="flash-message flash-{{ category }}">
                             {{ message }}
                         </div>
                     {% endfor %}
@@ -156,5 +167,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/options_flow.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/mock_indicators.js') }}"></script>
 </body>
 </html>

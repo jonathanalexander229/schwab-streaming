@@ -1,0 +1,335 @@
+/* Mock Mode UI Indicators */
+
+/* Mock Mode Banner */
+.mock-mode-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #ff9800, #f57c00);
+    color: white;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    animation: slideDown 0.5s ease-out;
+}
+
+.mock-banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 15px;
+}
+
+.mock-icon {
+    font-size: 1.5em;
+    animation: pulse 2s infinite;
+}
+
+.mock-text {
+    font-weight: bold;
+    font-size: 1.1em;
+    letter-spacing: 1px;
+}
+
+.mock-description {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+.mock-banner-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0;
+    margin-left: auto;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.mock-banner-close:hover {
+    opacity: 1;
+}
+
+/* Data Source Indicator in Header */
+.data-source-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 152, 0, 0.1);
+    border: 1px solid rgba(255, 152, 0, 0.3);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 0.85em;
+    margin-top: 8px;
+}
+
+.data-source-indicator.real-mode {
+    background: rgba(76, 175, 80, 0.1);
+    border-color: rgba(76, 175, 80, 0.3);
+    color: #2e7d32;
+}
+
+.data-source-indicator.mock-mode {
+    background: rgba(255, 152, 0, 0.1);
+    border-color: rgba(255, 152, 0, 0.3);
+    color: #ef6c00;
+}
+
+/* Data Source Badge */
+.data-source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #ff9800;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-right: 15px;
+}
+
+.data-source-badge.real {
+    background: #4caf50;
+}
+
+.data-source-badge.mock {
+    background: #ff9800;
+}
+
+/* Stock Card Mock Indicators */
+.stock-card.mock-data {
+    border-left: 4px solid #ff9800;
+    position: relative;
+}
+
+.stock-card.mock-data::before {
+    content: "🎭";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    opacity: 0.3;
+    font-size: 1.2em;
+}
+
+.stock-card.real-data {
+    border-left: 4px solid #4caf50;
+}
+
+/* Mock Test Controls */
+.mock-test-controls {
+    background: #fff3e0;
+    border: 1px solid #ffcc02;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.mock-test-controls h3 {
+    color: #ef6c00;
+    margin: 0 0 10px 0;
+    font-size: 1em;
+}
+
+.mock-event-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.mock-event-btn {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.mock-event-btn:hover {
+    background: #f57c00;
+}
+
+/* Watchlist Info */
+.watchlist-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.last-update {
+    font-size: 0.9em;
+    color: #666;
+}
+
+/* Flash Message Enhancements */
+.flash-message {
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.flash-message.flash-warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.flash-message.flash-warning::before {
+    content: "🎭";
+    font-size: 1.2em;
+}
+
+.flash-message.flash-success::before {
+    content: "✅";
+    font-size: 1.2em;
+}
+
+.flash-message.flash-error::before {
+    content: "❌";
+    font-size: 1.2em;
+}
+
+/* Connection Status Updates */
+.status-dot {
+    transition: background-color 0.3s ease;
+}
+
+.status-dot.mock-connected {
+    background-color: #ff9800 !important;
+}
+
+.status-dot.real-connected {
+    background-color: #4caf50 !important;
+}
+
+/* Animations */
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes slideInRight {
+    from { 
+        transform: translateX(100%); 
+        opacity: 0; 
+    }
+    to { 
+        transform: translateX(0); 
+        opacity: 1; 
+    }
+}
+
+@keyframes slideOutRight {
+    from { 
+        transform: translateX(0); 
+        opacity: 1; 
+    }
+    to { 
+        transform: translateX(100%); 
+        opacity: 0; 
+    }
+}
+
+/* Mock Event Notifications */
+.mock-event-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #ff9800;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 5px;
+    z-index: 1001;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    animation: slideInRight 0.3s ease-out;
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.mock-mode-active .mock-specific {
+    display: block !important;
+}
+
+.real-mode-active .real-specific {
+    display: block !important;
+}
+
+/* Body padding adjustment for banner */
+body.mock-banner-visible {
+    padding-top: 60px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .mock-banner-content {
+        flex-direction: column;
+        gap: 8px;
+        text-align: center;
+    }
+    
+    .mock-description {
+        font-size: 0.8em;
+    }
+    
+    .data-source-indicator {
+        justify-content: center;
+    }
+    
+    .watchlist-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .mock-event-buttons {
+        justify-content: center;
+    }
+    
+    .mock-event-notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        text-align: center;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .mock-mode-banner,
+    .mock-test-controls,
+    .data-source-indicator,
+    .mock-event-notification {
+        display: none !important;
+    }
+}
