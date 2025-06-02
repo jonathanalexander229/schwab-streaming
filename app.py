@@ -698,56 +698,27 @@ def handle_change_options_symbol(data):
         logger.error(f"Error changing options symbol via WebSocket: {e}")
         emit('error', {'message': str(e)})
 
-# Template creation functions (your existing functions)
-def create_static_files():
-    """Create CSS and JavaScript files"""
-    # Your existing CSS and JS creation code
-    pass
-
-def create_templates():
-    """Create HTML templates"""
-    # Your existing template creation code
-    pass
-
 # Enhanced initialization with mock/real separation
 def initialize_app():
-    """Enhanced initialization with proper mock/real separation"""
+    """Enhanced initialization with proper .env control and no prompts"""
     global schwab_client, schwab_streamer, global_mock_mode
-    
-    create_static_files()
-    create_templates()
     
     print("\n" + "="*80)
     print("🚀 SCHWAB MARKET DATA STREAMING APP WITH OPTIONS FLOW")
     print("="*80)
     
-    # Check for environment override
+    # Load environment variables first
+    load_dotenv()
+    
+    # Check environment variable - NO interactive prompts
     env_mock = os.getenv('USE_MOCK_DATA', 'false').lower() == 'true'
     
     if env_mock:
         use_mock = True
-        print("🎭 Environment variable USE_MOCK_DATA=true detected")
+        print("🎭 Environment variable USE_MOCK_DATA=true - using MOCK mode")
     else:
-        # Interactive mode selection
-        print("Choose your data source:")
-        print("1. Schwab API (real market data - requires authentication)")
-        print("2. Mock data (simulated data - separate database)")
-        print("="*80)
-        
-        while True:
-            try:
-                choice = input("Enter your choice (1 or 2): ").strip()
-                if choice == '1':
-                    use_mock = False
-                    break
-                elif choice == '2':
-                    use_mock = True
-                    break
-                else:
-                    print("Please enter 1 or 2")
-            except KeyboardInterrupt:
-                print("\n👋 Goodbye!")
-                sys.exit(0)
+        use_mock = False
+        print("✅ Environment variable USE_MOCK_DATA=false - using REAL Schwab API mode")
     
     print("Initializing connection...")
     
@@ -821,8 +792,12 @@ def initialize_app():
 # Main execution
 if __name__ == '__main__':
     try:
-        initialize_app()
-        socketio.run(app, debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
+        # Only initialize once (not on restart)
+        if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+            initialize_app()
+        
+        # Run with debug=False to prevent automatic restarts
+        socketio.run(app, debug=False, host=Config.HOST, port=Config.PORT)
         
     except KeyboardInterrupt:
         print("\n👋 Application stopped by user")

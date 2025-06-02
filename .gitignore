@@ -5,3 +5,4 @@ __pycache__/*
 tokens.json
 schwab_tokens.json
 watchlist.json
+*.log
