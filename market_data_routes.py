@@ -93,6 +93,7 @@ def get_market_data():
 @market_data_bp.route('/api/auth-status')
 def auth_status():
     """Get authentication and system status"""
+    import os
     is_authenticated = session.get('authenticated', False)
     
     if not is_authenticated:

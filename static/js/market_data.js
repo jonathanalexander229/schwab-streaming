@@ -10,6 +10,7 @@ class MarketDataApp {
         // Set initial connection status
         this.updateConnectionStatus(false);
         
+        
         this.initializeEventListeners();
         this.setupSocketHandlers();
         this.loadInitialData();
@@ -105,6 +106,7 @@ class MarketDataApp {
         }
     }
 
+
     updateMockModeUI() {
         console.log('Updating mock mode UI, isMockMode:', this.isMockMode);
         
@@ -136,6 +138,16 @@ class MarketDataApp {
                 dataSourceIndicator.classList.add('real-mode');
                 if (icon) icon.textContent = '✅';
                 if (text) text.textContent = 'LIVE DATA';
+            }
+        }
+
+        // Update header subtitle
+        const headerSubtitle = document.getElementById('headerSubtitle');
+        if (headerSubtitle) {
+            if (this.isMockMode) {
+                headerSubtitle.innerHTML = '🎭 <strong style="color: #ff9800;">MOCK DATA MODE</strong> - Simulated market data';
+            } else {
+                headerSubtitle.innerHTML = '✅ <strong style="color: #4caf50;">LIVE DATA</strong> - Real-time equity market data';
             }
         }
 
