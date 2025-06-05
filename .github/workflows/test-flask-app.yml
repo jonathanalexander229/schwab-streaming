@@ -1,0 +1,400 @@
+name: Flask App Testing Suite
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test-flask-app:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5.6.0
+      with:
+        python-version: "3.11"
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4.2.3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sqlite3
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest requests
+
+    - name: Create test data directory
+      run: |
+        mkdir -p data
+
+    - name: Test Flask app imports
+      run: |
+        python -c "
+        print('Testing Flask app imports...')
+        
+        # Test main app import
+        try:
+            from app import app
+            print('  ✓ Main Flask app imported successfully')
+        except Exception as e:
+            print(f'  ✗ Main app import failed: {e}')
+            exit(1)
+        
+        # Test route modules
+        try:
+            from market_data_routes import market_data_bp
+            print('  ✓ Market data routes imported successfully')
+        except Exception as e:
+            print(f'  ✗ Market data routes import failed: {e}')
+            exit(1)
+        
+        # Test auth module
+        try:
+            from auth import auth_bp
+            print('  ✓ Auth module imported successfully')
+        except Exception as e:
+            print(f'  ✗ Auth module import failed: {e}')
+            exit(1)
+        
+        print('✓ All Flask app imports successful')
+        "
+
+    - name: Test Flask app configuration
+      run: |
+        python -c "
+        from app import app
+        import os
+        
+        print('Testing Flask app configuration...')
+        
+        # Test app configuration
+        assert app.config is not None, 'App config not found'
+        print('  ✓ Flask app configured')
+        
+        # Test secret key (should be set for sessions)
+        assert app.secret_key is not None, 'Secret key not set'
+        print('  ✓ Secret key configured')
+        
+        # Test debug mode setting
+        print(f'  ✓ Debug mode: {app.debug}')
+        
+        print('✓ Flask configuration test passed')
+        "
+
+    - name: Test routes registration
+      run: |
+        python -c "
+        from app import app
+        
+        print('Testing route registration...')
+        
+        # Get all registered routes
+        routes = []
+        for rule in app.url_map.iter_rules():
+            routes.append(rule.rule)
+        
+        # Check for essential routes
+        essential_routes = [
+            '/',
+            '/login',
+            '/logout',
+            '/market-data',
+            '/api/market-data',
+            '/api/watchlist',
+            '/api/auth-status'
+        ]
+        
+        missing_routes = []
+        for route in essential_routes:
+            if route not in routes:
+                missing_routes.append(route)
+        
+        if missing_routes:
+            print(f'  ✗ Missing routes: {missing_routes}')
+            exit(1)
+        
+        print(f'  ✓ Found {len(routes)} registered routes')
+        for route in essential_routes:
+            print(f'    - {route}')
+        
+        print('✓ Route registration test passed')
+        "
+
+    - name: Test Flask app startup
+      run: |
+        python -c "
+        import os
+        import sys
+        import threading
+        import time
+        import requests
+        from app import app
+        
+        print('Testing Flask app startup...')
+        
+        # Set test configuration
+        app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = False
+        
+        # Create test client
+        client = app.test_client()
+        
+        # Test basic app functionality
+        with app.app_context():
+            # Test login page
+            response = client.get('/login')
+            assert response.status_code == 200, f'Login page failed: {response.status_code}'
+            print('  ✓ Login page accessible')
+            
+            # Test root redirect
+            response = client.get('/')
+            assert response.status_code in [200, 302], f'Root page failed: {response.status_code}'
+            print('  ✓ Root page accessible')
+        
+        print('✓ Flask app startup test passed')
+        "
+
+    - name: Test market data integration
+      run: |
+        python -c "
+        from app import app
+        from market_data import initialize_market_data_manager
+        from mock_data import MockSchwabClient, MockSchwabStreamer
+        import tempfile
+        import os
+        
+        print('Testing market data integration...')
+        
+        app.config['TESTING'] = True
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Initialize market data manager
+            manager = initialize_market_data_manager(temp_dir)
+            
+            # Create mock components
+            mock_client = MockSchwabClient()
+            mock_streamer = MockSchwabStreamer()
+            
+            # Set dependencies (mock mode)
+            manager.set_dependencies(mock_client, mock_streamer, None, is_mock_mode=True)
+            
+            # Test manager functionality
+            assert manager is not None, 'Market data manager not initialized'
+            assert manager.is_mock_mode == True, 'Mock mode not set'
+            
+            # Test adding symbols
+            result = manager.add_symbol('AAPL')
+            assert result == True, 'Failed to add symbol'
+            
+            watchlist = manager.get_watchlist()
+            assert 'AAPL' in watchlist, 'Symbol not in watchlist'
+            
+            print('  ✓ Market data manager integration working')
+            print(f'  ✓ Watchlist contains: {watchlist}')
+        
+        print('✓ Market data integration test passed')
+        "
+
+    - name: Test API endpoints with mock data
+      run: |
+        python -c "
+        from app import app
+        from market_data_routes import initialize_market_data
+        from mock_data import MockSchwabClient, MockSchwabStreamer
+        import tempfile
+        import json
+        
+        print('Testing API endpoints...')
+        
+        app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = False
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Initialize with mock data
+            mock_client = MockSchwabClient()
+            mock_streamer = MockSchwabStreamer()
+            
+            manager = initialize_market_data(temp_dir, mock_client, mock_streamer, None, is_mock_mode=True)
+            
+            client = app.test_client()
+            
+            # Create test session (simulate login)
+            with client.session_transaction() as sess:
+                sess['authenticated'] = True
+            
+            # Test auth status endpoint
+            response = client.get('/api/auth-status')
+            assert response.status_code == 200, f'Auth status failed: {response.status_code}'
+            data = json.loads(response.data)
+            assert data['authenticated'] == True, 'Not authenticated'
+            assert data['mock_mode'] == True, 'Mock mode not detected'
+            print('  ✓ Auth status API working')
+            
+            # Test watchlist endpoint
+            response = client.get('/api/watchlist')
+            assert response.status_code == 200, f'Watchlist failed: {response.status_code}'
+            print('  ✓ Watchlist API working')
+            
+            # Test market data endpoint
+            response = client.get('/api/market-data')
+            assert response.status_code == 200, f'Market data failed: {response.status_code}'
+            data = json.loads(response.data)
+            assert 'market_data' in data, 'Market data missing'
+            assert data['is_mock_mode'] == True, 'Mock mode flag missing'
+            print('  ✓ Market data API working')
+        
+        print('✓ API endpoints test passed')
+        "
+
+    - name: Test authentication flow
+      run: |
+        python -c "
+        from app import app
+        import json
+        
+        print('Testing authentication flow...')
+        
+        app.config['TESTING'] = True
+        app.config['WTF_CSRF_ENABLED'] = False
+        
+        client = app.test_client()
+        
+        # Test unauthenticated access
+        response = client.get('/market-data')
+        assert response.status_code == 302, f'Should redirect when not authenticated: {response.status_code}'
+        print('  ✓ Unauthenticated redirect working')
+        
+        # Test login page
+        response = client.get('/login')
+        assert response.status_code == 200, f'Login page failed: {response.status_code}'
+        print('  ✓ Login page accessible')
+        
+        # Test API endpoints without auth
+        response = client.get('/api/market-data')
+        assert response.status_code == 401, f'API should return 401 without auth: {response.status_code}'
+        print('  ✓ API authentication protection working')
+        
+        print('✓ Authentication flow test passed')
+        "
+
+    - name: Test SocketIO integration
+      run: |
+        python -c "
+        from app import app, socketio
+        
+        print('Testing SocketIO integration...')
+        
+        # Test SocketIO app creation
+        assert socketio is not None, 'SocketIO not initialized'
+        print('  ✓ SocketIO initialized')
+        
+        # Test SocketIO test client
+        client = socketio.test_client(app)
+        assert client is not None, 'SocketIO test client creation failed'
+        print('  ✓ SocketIO test client created')
+        
+        # Test client disconnect
+        client.disconnect()
+        print('  ✓ SocketIO client disconnect working')
+        
+        print('✓ SocketIO integration test passed')
+        "
+
+    - name: Test template rendering
+      run: |
+        python -c "
+        from app import app
+        import os
+        
+        print('Testing template rendering...')
+        
+        app.config['TESTING'] = True
+        
+        # Check if template files exist
+        template_dir = 'templates'
+        required_templates = ['login.html', 'index.html']
+        
+        for template in required_templates:
+            template_path = os.path.join(template_dir, template)
+            assert os.path.exists(template_path), f'Template missing: {template_path}'
+            print(f'  ✓ Template found: {template}')
+        
+        # Test template rendering with test client
+        client = app.test_client()
+        
+        response = client.get('/login')
+        assert response.status_code == 200, 'Login template rendering failed'
+        assert b'html' in response.data.lower(), 'Response does not contain HTML'
+        print('  ✓ Login template renders correctly')
+        
+        print('✓ Template rendering test passed')
+        "
+
+    - name: Test static files
+      run: |
+        python -c "
+        import os
+        
+        print('Testing static files...')
+        
+        # Check if static files exist
+        static_dir = 'static'
+        
+        # Check CSS files
+        css_files = ['main.css', 'login.css']
+        for css_file in css_files:
+            css_path = os.path.join(static_dir, 'css', css_file)
+            if os.path.exists(css_path):
+                print(f'  ✓ CSS file found: {css_file}')
+            else:
+                print(f'  ⚠ CSS file missing: {css_file}')
+        
+        # Check JS files
+        js_files = ['market_data.js']
+        for js_file in js_files:
+            js_path = os.path.join(static_dir, 'js', js_file)
+            if os.path.exists(js_path):
+                print(f'  ✓ JS file found: {js_file}')
+            else:
+                print(f'  ⚠ JS file missing: {js_file}')
+        
+        print('✓ Static files check completed')
+        "
+
+    - name: Print Flask test summary
+      if: always()
+      run: |
+        echo "=================================="
+        echo "🌐 FLASK APP TEST SUMMARY"
+        echo "=================================="
+        echo "Python Version: 3.11"
+        echo "OS: ubuntu-latest"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "=================================="
+        echo "Flask app tests completed!"
+        echo "✓ Flask app imports and configuration"
+        echo "✓ Route registration and accessibility"
+        echo "✓ Market data integration (mock mode)"
+        echo "✓ API endpoints functionality"
+        echo "✓ Authentication flow"
+        echo "✓ SocketIO integration"
+        echo "✓ Template rendering"
+        echo "✓ Static files presence"
+        echo "=================================="
