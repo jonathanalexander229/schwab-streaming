@@ -23,7 +23,6 @@ class Config:
     
     # Feature toggles
     ENABLE_MARKET_DATA = os.getenv('ENABLE_MARKET_DATA', 'true').lower() == 'true'
-    ENABLE_OPTIONS_FLOW = os.getenv('ENABLE_OPTIONS_FLOW', 'false').lower() == 'true'
     
     # Directories
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -135,22 +134,30 @@ def index():
     if schwab_client is None:
         # User is authenticated but no Schwab client - need to reinitialize
         logger.info("User authenticated but no Schwab client found - reinitializing...")
-        is_mock_mode = session.get('mock_mode', False)
+        
+        # Determine mock mode - environment variable takes precedence over session
+        env_mock = os.getenv('USE_MOCK_DATA', 'false').lower() == 'true'
+        use_mock = env_mock
         
         # Get Schwab client
         from auth import get_schwab_client
-        schwab_client = get_schwab_client(is_mock_mode)
+        schwab_client = get_schwab_client(use_mock)
         if schwab_client:
             schwab_streamer = schwab_client.stream
+            
+            # Determine actual mock mode and update session
+            is_mock_mode = hasattr(schwab_client, '__class__') and 'Mock' in schwab_client.__class__.__name__
+            session['mock_mode'] = is_mock_mode
+            global_mock_mode = is_mock_mode
+            
+            logger.info(f"Reinitialized with mock mode: {is_mock_mode}")
+            
             # Reinitialize features with proper clients
             initialize_features(is_mock_mode)
     
     # If market data is enabled, show market data page directly
     if Config.ENABLE_MARKET_DATA:
         return render_template('index.html')
-    # If options flow is enabled and market data is not, redirect to options flow
-    elif Config.ENABLE_OPTIONS_FLOW:
-        return redirect(url_for('options_flow.options_flow'))
     else:
         # No features enabled, show basic page
         return render_template('index.html')
@@ -162,9 +169,6 @@ def initialize_features(is_mock_mode: bool):
     
     if Config.ENABLE_MARKET_DATA:
         initialize_market_data_feature(is_mock_mode)
-    
-    if Config.ENABLE_OPTIONS_FLOW:
-        initialize_options_flow_feature(is_mock_mode)
 
 def initialize_market_data_feature(is_mock_mode: bool):
     """Initialize market data feature"""
@@ -204,48 +208,6 @@ def initialize_market_data_feature(is_mock_mode: bool):
     except Exception as e:
         logger.error(f"Error initializing market data feature: {e}")
 
-def initialize_options_flow_feature(is_mock_mode: bool):
-    """Initialize options flow feature"""
-    try:
-        from options_flow_routes import initialize_options_flow, start_options_monitoring
-        
-        logger.info("Initializing options flow feature...")
-        
-        # Initialize the options flow monitor
-        monitor = initialize_options_flow(
-            schwab_client, 
-            socketio, 
-            lambda: get_db_connection_for_options(is_mock_mode)
-        )
-        
-        if monitor:
-            # Start monitoring
-            success = start_options_monitoring(30)
-            if success:
-                logger.info("Options flow monitoring started successfully")
-            else:
-                logger.warning("Failed to start options flow monitoring")
-        else:
-            logger.error("Failed to initialize options flow monitor")
-            
-    except Exception as e:
-        logger.error(f"Error initializing options flow feature: {e}")
-
-def get_db_connection_for_options(is_mock_mode: bool):
-    """Get database connection for options flow (delegates to market data manager)"""
-    if Config.ENABLE_MARKET_DATA:
-        from market_data import get_market_data_manager
-        manager = get_market_data_manager()
-        if manager:
-            return manager.get_db_connection(is_mock_mode)
-    
-    # Fallback: create minimal connection for options only
-    import sqlite3
-    from datetime import datetime
-    
-    today_date = datetime.now().strftime('%y%m%d')
-    db_filename = os.path.join(Config.DATA_DIR, f"{'MOCK_' if is_mock_mode else ''}market_data_{today_date}.db")
-    return sqlite3.connect(db_filename)
 
 def cleanup_features():
     """Clean up all enabled features"""
@@ -256,14 +218,6 @@ def cleanup_features():
             logger.info("Market data streaming stopped")
         except Exception as e:
             logger.error(f"Error stopping market data: {e}")
-    
-    if Config.ENABLE_OPTIONS_FLOW:
-        try:
-            from options_flow_routes import stop_options_monitoring
-            stop_options_monitoring()
-            logger.info("Options flow monitoring stopped")
-        except Exception as e:
-            logger.error(f"Error stopping options flow: {e}")
 
 # Register feature blueprints
 def register_blueprints():
@@ -275,14 +229,6 @@ def register_blueprints():
             logger.info("Market data blueprint registered")
         except Exception as e:
             logger.error(f"Error registering market data blueprint: {e}")
-    
-    if Config.ENABLE_OPTIONS_FLOW:
-        try:
-            from options_flow_routes import options_flow_bp
-            app.register_blueprint(options_flow_bp)
-            logger.info("Options flow blueprint registered")
-        except Exception as e:
-            logger.error(f"Error registering options flow blueprint: {e}")
 
 # Application initialization
 def initialize_app():
@@ -298,8 +244,6 @@ def initialize_app():
     features = []
     if Config.ENABLE_MARKET_DATA:
         features.append("📊 Market Data")
-    if Config.ENABLE_OPTIONS_FLOW:
-        features.append("📈 Options Flow")
     
     if features:
         print(f"🔧 Enabled features: {', '.join(features)}")
@@ -333,8 +277,6 @@ def initialize_app():
         print("🔗 Available endpoints:")
         if Config.ENABLE_MARKET_DATA:
             print("   📊 Market Data: /")
-        if Config.ENABLE_OPTIONS_FLOW:
-            print("   📈 Options Flow: /options-flow")
     
     print("="*80)
     
