@@ -209,42 +209,42 @@ jobs:
             mock_client = MockSchwabClient()
             mock_streamer = MockSchwabStreamer()
             
-            print('  ✓ Mock Schwab client created')
-            print('  ✓ Mock streamer created')
+            print(\"  ✓ Mock Schwab client created\")
+            print(\"  ✓ Mock streamer created\")
             
             # Test market data manager integration
             from market_data import initialize_market_data_manager
             manager = initialize_market_data_manager(temp_dir)
             manager.set_dependencies(mock_client, mock_streamer, socketio, is_mock_mode=True)
             
-            assert manager.is_mock_mode == True, 'Mock mode not enabled'
-            print('  ✓ Market data manager in mock mode')
+            assert manager.is_mock_mode == True, \"Mock mode not enabled\"
+            print(\"  ✓ Market data manager in mock mode\")
             
             # Test streaming integration
-            manager.add_symbol('AAPL')
-            manager.add_symbol('MSFT')
+            manager.add_symbol(\"AAPL\")
+            manager.add_symbol(\"MSFT\")
             
             watchlist = manager.get_watchlist()
-            assert 'AAPL' in watchlist, 'AAPL not in watchlist'
-            assert 'MSFT' in watchlist, 'MSFT not in watchlist'
-            print(f'  ✓ Watchlist: {watchlist}')
+            assert \"AAPL\" in watchlist, \"AAPL not in watchlist\"
+            assert \"MSFT\" in watchlist, \"MSFT not in watchlist\"
+            print(f\"  ✓ Watchlist: {watchlist}\")
             
             # Test mock data generation
-            quote = mock_streamer.data_generator.generate_quote('AAPL')
-            assert quote.symbol == 'AAPL', 'Quote generation failed'
-            assert quote.last_price > 0, 'Invalid price generated'
-            print(f'  ✓ Mock quote: AAPL @ ${quote.last_price}')
+            quote = mock_streamer.data_generator.generate_quote(\"AAPL\")
+            assert quote.symbol == \"AAPL\", \"Quote generation failed\"
+            assert quote.last_price > 0, \"Invalid price generated\"
+            print(f\"  ✓ Mock quote: AAPL @ \${quote.last_price}\")
             
             # Test message handling
             message = mock_streamer._create_schwab_message(quote)
             manager.schwab_message_handler(message)
             
             market_data = manager.get_market_data()
-            assert 'AAPL' in market_data['market_data'], 'Market data not processed'
-            assert market_data['is_mock_mode'] == True, 'Mock mode flag missing'
-            print('  ✓ Mock streaming message processed')
+            assert \"AAPL\" in market_data[\"market_data\"], \"Market data not processed\"
+            assert market_data[\"is_mock_mode\"] == True, \"Mock mode flag missing\"
+            print(\"  ✓ Mock streaming message processed\")
             
-        print('✓ Flask app mock streaming test passed')
+        print(\"✓ Flask app mock streaming test passed\")
         "
 
     - name: Test API endpoints with mock data
