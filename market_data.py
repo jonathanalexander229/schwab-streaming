@@ -149,7 +149,7 @@ class MarketDataManager:
                     logger.info(f"Added {symbol} to mock stream")
                 else:
                     # Real Schwab streamer method
-                    self.schwab_streamer.send(self.schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                    self.schwab_streamer.send(self.schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,10,11,12,17,18,42"))
                     logger.info(f"Subscribed to Schwab data for {symbol}")
                 return True
             except Exception as e:
@@ -229,14 +229,14 @@ class MarketDataManager:
                         # Process level one equity data (keeping original field mapping)
                         market_data_item = {
                             'symbol': symbol,
-                            'last_price': content.get("1"),      # Last price
-                            'bid_price': content.get("2"),       # Bid price  
-                            'ask_price': content.get("3"),       # Ask price
-                            'volume': content.get("8"),          # Volume
-                            'high_price': content.get("12"),     # High price
-                            'low_price': content.get("13"),      # Low price (or market indicator?)
-                            'net_change': content.get("29"),     # Net change (or previous close?)
-                            'net_change_percent': content.get("30"), # Net change percent (or volume?)
+                            'last_price': content.get("3"),      # Field 3: Last Price
+                            'bid_price': content.get("1"),       # Field 1: Bid Price
+                            'ask_price': content.get("2"),       # Field 2: Ask Price
+                            'volume': content.get("8"),          # Field 8: Total Volume
+                            'high_price': content.get("10"),     # Field 10: High Price
+                            'low_price': content.get("11"),      # Field 11: Low Price
+                            'net_change': content.get("18"),     # Field 18: Net Change
+                            'net_change_percent': content.get("42"), # Field 42: Net Percent Change
                             'timestamp': timestamp,
                             'data_source': 'MOCK' if self.is_mock_mode else 'SCHWAB_API'
                         }

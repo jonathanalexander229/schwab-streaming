@@ -39,17 +39,17 @@ class MockQuote:
     timestamp: int
     
     def to_schwab_format(self) -> Dict[str, Any]:
-        """Convert to Schwab API format with numeric field codes"""
+        """Convert to Schwab API format with correct numeric field codes"""
         return {
             "key": self.symbol,
-            "1": self.last_price,      # Last price
-            "2": self.bid_price,       # Bid price
-            "3": self.ask_price,       # Ask price
-            "8": self.volume,          # Volume
-            "12": self.high_price,     # High price
-            "13": self.low_price,      # Low price
-            "29": self.net_change,     # Net change
-            "30": self.net_change_percent  # Net change percent
+            "1": self.bid_price,       # Field 1: Bid Price
+            "2": self.ask_price,       # Field 2: Ask Price
+            "3": self.last_price,      # Field 3: Last Price
+            "8": self.volume,          # Field 8: Total Volume
+            "10": self.high_price,     # Field 10: High Price
+            "11": self.low_price,      # Field 11: Low Price
+            "18": self.net_change,     # Field 18: Net Change
+            "42": self.net_change_percent  # Field 42: Net Percent Change
         }
     
     def to_app_format(self) -> Dict[str, Any]:
@@ -528,8 +528,9 @@ class MarketDataStreamingTests(unittest.TestCase):
         # Test Schwab format
         schwab_format = quote.to_schwab_format()
         self.assertEqual(schwab_format['key'], 'TEST')
-        self.assertEqual(schwab_format['1'], 100.0)  # Last price
-        self.assertEqual(schwab_format['2'], 99.95)  # Bid price
+        self.assertEqual(schwab_format['1'], 99.95)  # Bid price
+        self.assertEqual(schwab_format['2'], 100.05)  # Ask price
+        self.assertEqual(schwab_format['3'], 100.0)  # Last price
         
         # Test app format
         app_format = quote.to_app_format()
@@ -563,7 +564,7 @@ def run_integration_test():
         try:
             data = json.loads(message)
             received_data.append(data)
-            print(f"Received: {data['data'][0]['content'][0]['key']} @ ${data['data'][0]['content'][0]['1']}")
+            print(f"Received: {data['data'][0]['content'][0]['key']} @ ${data['data'][0]['content'][0]['3']}")
         except Exception as e:
             print(f"Error processing message: {e}")
     

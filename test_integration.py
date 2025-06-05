@@ -180,7 +180,7 @@ def simple_streaming_test():
         data = json.loads(message)
         content = data['data'][0]['content'][0]
         symbol = content['key']
-        price = content['1']  # Last price
+        price = content['3']  # Last price
         print(f"{symbol}: ${price}")
     
     # Start streaming
