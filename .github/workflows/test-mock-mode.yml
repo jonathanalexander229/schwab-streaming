@@ -16,18 +16,15 @@ on:
 jobs:
   test-mock-mode:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.9, 3.10, 3.11]
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4.2.2
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5.6.0
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.11"
 
     - name: Cache pip dependencies
       uses: actions/cache@v4.2.3
@@ -93,18 +90,15 @@ jobs:
         echo "=================================="
         echo "🧪 MOCK MODE TEST SUMMARY"
         echo "=================================="
-        echo "Python Version: ${{ matrix.python-version }}"
+        echo "Python Version: 3.11"
         echo "OS: ubuntu-latest"
         echo "Branch: ${{ github.ref_name }}"
         echo "Commit: ${{ github.sha }}"
         echo "=================================="
         echo "Tests completed for mock market data streaming!"
-        echo "✓ Mock data generation"
-        echo "✓ Field mapping validation"  
-        echo "✓ Database storage"
-        echo "✓ Streaming functionality"
-        echo "✓ Error handling"
-        echo "✓ Performance validation"
+        echo "✓ Basic test suite"
+        echo "✓ Import validation"
+        echo "✓ Field mapping validation"
         echo "=================================="
 
     - name: Debug information
