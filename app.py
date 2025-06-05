@@ -253,18 +253,19 @@ def initialize_app():
     # Register blueprints
     register_blueprints()
     
+    # Check environment variable for mock mode first
+    env_mock = os.getenv('USE_MOCK_DATA', 'false').lower() == 'true'
+    
     # Initialize features even without authentication for basic functionality
     if Config.ENABLE_MARKET_DATA:
         try:
             from market_data_routes import initialize_market_data
             # Initialize with None clients - will be set during authentication
-            initialize_market_data(Config.DATA_DIR, None, None, socketio, False)
+            # Use environment variable to determine mock mode
+            initialize_market_data(Config.DATA_DIR, None, None, socketio, env_mock)
             print("📊 Market data manager pre-initialized")
         except Exception as e:
             logger.error(f"Failed to pre-initialize market data: {e}")
-    
-    # Check environment variable for mock mode
-    env_mock = os.getenv('USE_MOCK_DATA', 'false').lower() == 'true'
     
     if env_mock:
         print("🎭 Environment variable USE_MOCK_DATA=true - using MOCK mode")
