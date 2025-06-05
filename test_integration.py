@@ -1,4 +1,4 @@
-# test_integration.py - Complete Integration Test Suite
+# test_integration.py - Complete Integration Test Suite with CI/CD Support
 
 import sys
 import os
@@ -7,6 +7,8 @@ import json
 import requests
 import threading
 import unittest
+import tempfile
+import sqlite3
 from unittest.mock import patch, MagicMock
 import socketio as client_socketio
 
@@ -208,6 +210,79 @@ if __name__ == "__main__":
         
         print("Created simple_test.py")
         print("Run with: python simple_test.py")
+    
+    def run_basic_tests(self):
+        """Run basic validation tests for CI/CD"""
+        print("="*50)
+        print("🧪 BASIC TEST SUITE")
+        print("="*50)
+        
+        success = True
+        
+        # Test 1: Unit tests
+        print("1. Running unit tests...")
+        try:
+            suite = unittest.TestLoader().loadTestsFromTestCase(MarketDataStreamingTests)
+            runner = unittest.TextTestRunner(verbosity=1)
+            result = runner.run(suite)
+            
+            if result.wasSuccessful():
+                print(f"  ✓ Unit tests passed ({result.testsRun} tests)")
+            else:
+                print(f"  ✗ Unit tests failed ({len(result.failures + result.errors)} failures)")
+                success = False
+        except Exception as e:
+            print(f"  ✗ Unit test error: {e}")
+            success = False
+        
+        # Test 2: Basic mock data generation
+        print("\n2. Testing mock data generation...")
+        try:
+            from mock_data import MockMarketDataGenerator
+            generator = MockMarketDataGenerator()
+            quote = generator.generate_quote('AAPL')
+            
+            # Basic validation
+            assert quote.symbol == 'AAPL'
+            assert quote.last_price > 0
+            assert quote.bid_price < quote.ask_price
+            assert quote.volume >= 0
+            
+            print("  ✓ Mock data generation working")
+        except Exception as e:
+            print(f"  ✗ Mock data generation failed: {e}")
+            success = False
+        
+        # Test 3: Field mapping validation
+        print("\n3. Testing field mappings...")
+        try:
+            from mock_data import MockQuote
+            quote = MockQuote(
+                symbol='TEST', last_price=100.0, bid_price=99.95, ask_price=100.05,
+                volume=1000, high_price=101.0, low_price=99.0, 
+                net_change=1.0, net_change_percent=1.0, timestamp=1234567890
+            )
+            
+            schwab_format = quote.to_schwab_format()
+            
+            # Check key field mappings
+            assert schwab_format['1'] == 99.95   # Bid Price
+            assert schwab_format['2'] == 100.05  # Ask Price
+            assert schwab_format['3'] == 100.0   # Last Price
+            
+            print("  ✓ Field mappings correct")
+        except Exception as e:
+            print(f"  ✗ Field mapping validation failed: {e}")
+            success = False
+        
+        print("\n" + "="*50)
+        if success:
+            print("✅ BASIC TESTS PASSED")
+        else:
+            print("❌ SOME TESTS FAILED")
+        print("="*50)
+        
+        return success
 
 def main():
     """Main test runner"""
@@ -216,6 +291,7 @@ def main():
     parser = argparse.ArgumentParser(description='Market Data Streaming Test Suite')
     parser.add_argument('--simple', action='store_true', help='Create simple test script')
     parser.add_argument('--quick', action='store_true', help='Run quick mock data test only')
+    parser.add_argument('--basic', action='store_true', help='Run basic test suite for CI/CD')
     parser.add_argument('--full', action='store_true', help='Run full integration test suite')
     
     args = parser.parse_args()
@@ -229,6 +305,11 @@ def main():
     
     if args.quick:
         success = tester.run_quick_test()
+        exit_code = 0 if success else 1
+        exit(exit_code)
+    
+    elif args.basic:
+        success = tester.run_basic_tests()
         exit_code = 0 if success else 1
         exit(exit_code)
     
