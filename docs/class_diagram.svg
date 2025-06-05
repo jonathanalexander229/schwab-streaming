@@ -1,199 +1,181 @@
-<svg viewBox="0 0 1300 850" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 1400 950" xmlns="http://www.w3.org/2000/svg">
   <!-- Background -->
-  <rect width="1300" height="850" fill="#f8f9fa"/>
+  <rect width="1400" height="950" fill="#f8f9fa"/>
   
   <!-- Title -->
-  <text x="650" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#004B8D">
-    Schwab Real-Time Equity Streaming Architecture
+  <text x="700" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#004B8D">
+    Schwab Market Data Streaming - Modular Architecture
   </text>
   
-  <!-- Schwab API (External) -->
-  <g id="schwab-api">
-    <rect x="50" y="70" width="200" height="120" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" rx="5"/>
-    <text x="150" y="95" text-anchor="middle" font-weight="bold" font-size="14" fill="#1976d2">Schwab WebSocket API</text>
-    <text x="60" y="115" font-size="12" fill="#333">• Level 1 Equity Quotes</text>
-    <text x="60" y="130" font-size="12" fill="#333">• Real-time streaming</text>
-    <text x="60" y="145" font-size="12" fill="#333">• Field-based subscriptions</text>
-    <text x="60" y="160" font-size="12" fill="#333">• Heartbeat monitoring</text>
-    <text x="60" y="175" font-size="12" fill="#333">• JSON message format</text>
+  <!-- Environment Layer -->
+  <g id="environment">
+    <rect x="50" y="60" width="1300" height="80" fill="#f0f4f8" stroke="#2c5282" stroke-width="2" rx="5" stroke-dasharray="5,5"/>
+    <text x="70" y="85" font-weight="bold" font-size="14" fill="#2c5282">Environment Configuration (.env)</text>
+    <text x="70" y="105" font-size="12" fill="#333">ENABLE_MARKET_DATA=true • ENABLE_OPTIONS_FLOW=false • USE_MOCK_DATA=false</text>
+    <text x="70" y="120" font-size="12" fill="#333">SCHWAB_APP_KEY=*** • SCHWAB_APP_SECRET=*** • FLASK_SECRET_KEY=***</text>
   </g>
-  
-  <!-- Schwabdev Client Library -->
-  <g id="schwabdev-client">
-    <rect x="320" y="70" width="180" height="140" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2" rx="5"/>
-    <text x="410" y="95" text-anchor="middle" font-weight="bold" font-size="14" fill="#7b1fa2">schwabdev.Client</text>
-    <line x1="330" y1="105" x2="490" y2="105" stroke="#7b1fa2"/>
-    <text x="330" y="125" font-size="12" fill="#333">+ stream: Streamer</text>
-    <text x="330" y="140" font-size="12" fill="#333">+ authenticate()</text>
-    <text x="330" y="155" font-size="12" fill="#333">+ get_quotes()</text>
-    <line x1="330" y1="165" x2="490" y2="165" stroke="#7b1fa2"/>
-    <text x="330" y="185" font-size="12" fill="#333">• OAuth 2.0 handling</text>
-    <text x="330" y="200" font-size="12" fill="#333">• Token management</text>
+
+  <!-- App Orchestrator -->
+  <g id="app-orchestrator">
+    <rect x="550" y="170" width="300" height="140" fill="#e8f5e8" stroke="#4caf50" stroke-width="3" rx="5"/>
+    <text x="700" y="195" text-anchor="middle" font-weight="bold" font-size="16" fill="#4caf50">🎛️ App Orchestrator</text>
+    <text x="700" y="215" text-anchor="middle" font-size="14" fill="#333">app.py</text>
+    <line x1="560" y1="225" x2="840" y2="225" stroke="#4caf50"/>
+    <text x="570" y="245" font-size="12" fill="#333">+ initialize_features()</text>
+    <text x="570" y="260" font-size="12" fill="#333">+ register_blueprints()</text>
+    <text x="570" y="275" font-size="12" fill="#333">+ cleanup_features()</text>
+    <line x1="560" y1="285" x2="840" y2="285" stroke="#4caf50"/>
+    <text x="570" y="300" font-size="12" fill="#333">• Feature toggle management</text>
   </g>
-  
-  <!-- Streamer Class -->
-  <g id="streamer">
-    <rect x="570" y="70" width="200" height="160" fill="#fff3e0" stroke="#f57c00" stroke-width="2" rx="5"/>
-    <text x="670" y="95" text-anchor="middle" font-weight="bold" font-size="14" fill="#f57c00">Streamer</text>
-    <line x1="580" y1="105" x2="760" y2="105" stroke="#f57c00"/>
-    <text x="580" y="125" font-size="12" fill="#333">+ start(handler)</text>
-    <text x="580" y="140" font-size="12" fill="#333">+ stop()</text>
-    <text x="580" y="155" font-size="12" fill="#333">+ send(subscription)</text>
-    <text x="580" y="170" font-size="12" fill="#333">+ level_one_equities()</text>
-    <line x1="580" y1="180" x2="760" y2="180" stroke="#f57c00"/>
-    <text x="580" y="200" font-size="12" fill="#333">• WebSocket connection</text>
-    <text x="580" y="215" font-size="12" fill="#333">• Message parsing</text>
+
+  <!-- Authentication Module -->
+  <g id="auth-module">
+    <rect x="50" y="350" width="250" height="120" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2" rx="5"/>
+    <text x="175" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#7b1fa2">🔐 Authentication Module</text>
+    <text x="175" y="395" text-anchor="middle" font-size="12" fill="#333">auth.py</text>
+    <line x1="60" y1="405" x2="290" y2="405" stroke="#7b1fa2"/>
+    <text x="70" y="425" font-size="12" fill="#333">+ get_schwab_client(mock)</text>
+    <text x="70" y="440" font-size="12" fill="#333">+ get_schwab_streamer()</text>
+    <line x1="60" y1="450" x2="290" y2="450" stroke="#7b1fa2"/>
+    <text x="70" y="465" font-size="12" fill="#333">• Client factory pattern</text>
   </g>
-  
-  <!-- Flask App (Main Controller) -->
-  <g id="flask-app">
-    <rect x="50" y="270" width="250" height="180" fill="#e8f5e8" stroke="#4caf50" stroke-width="2" rx="5"/>
-    <text x="175" y="295" text-anchor="middle" font-weight="bold" font-size="14" fill="#4caf50">Flask Application</text>
-    <line x1="60" y1="305" x2="290" y2="305" stroke="#4caf50"/>
-    <text x="60" y="325" font-size="12" fill="#333">+ schwab_client: Client</text>
-    <text x="60" y="340" font-size="12" fill="#333">+ schwab_streamer: Streamer</text>
-    <text x="60" y="355" font-size="12" fill="#333">+ market_data: dict</text>
-    <text x="60" y="370" font-size="12" fill="#333">+ watchlist: set</text>
-    <text x="60" y="385" font-size="12" fill="#333">+ socketio: SocketIO</text>
-    <line x1="60" y1="395" x2="290" y2="395" stroke="#4caf50"/>
-    <text x="60" y="415" font-size="12" fill="#333">+ initialize_app()</text>
-    <text x="60" y="430" font-size="12" fill="#333">+ schwab_message_handler()</text>
-    <text x="60" y="445" font-size="12" fill="#333">+ handle_add_symbol()</text>
-  </g>
-  
-  <!-- Message Handler -->
-  <g id="message-handler">
-    <rect x="370" y="270" width="220" height="140" fill="#fff8e1" stroke="#ffc107" stroke-width="2" rx="5"/>
-    <text x="480" y="295" text-anchor="middle" font-weight="bold" font-size="14" fill="#ffc107">schwab_message_handler</text>
-    <line x1="380" y1="305" x2="580" y2="305" stroke="#ffc107"/>
-    <text x="380" y="325" font-size="12" fill="#333">+ parse_json(message)</text>
-    <text x="380" y="340" font-size="12" fill="#333">+ filter_heartbeats()</text>
-    <text x="380" y="355" font-size="12" fill="#333">+ extract_equity_data()</text>
-    <text x="380" y="370" font-size="12" fill="#333">+ store_market_data()</text>
-    <text x="380" y="385" font-size="12" fill="#333">+ emit_to_clients()</text>
-    <text x="380" y="400" font-size="12" fill="#333">+ save_to_database()</text>
-  </g>
-  
-  <!-- Flask-SocketIO -->
-  <g id="flask-socketio">
-    <rect x="650" y="270" width="180" height="120" fill="#fce4ec" stroke="#e91e63" stroke-width="2" rx="5"/>
-    <text x="740" y="295" text-anchor="middle" font-weight="bold" font-size="14" fill="#e91e63">Flask-SocketIO</text>
-    <line x1="660" y1="305" x2="820" y2="305" stroke="#e91e63"/>
-    <text x="660" y="325" font-size="12" fill="#333">+ emit(event, data)</text>
-    <text x="660" y="340" font-size="12" fill="#333">+ on(event, handler)</text>
-    <text x="660" y="355" font-size="12" fill="#333">+ broadcast()</text>
-    <text x="660" y="370" font-size="12" fill="#333">+ rooms management</text>
-    <text x="660" y="385" font-size="12" fill="#333">• WebSocket server</text>
-  </g>
-  
-  <!-- Database -->
-  <g id="database">
-    <rect x="50" y="510" width="180" height="120" fill="#e0f2f1" stroke="#009688" stroke-width="2" rx="5"/>
-    <text x="140" y="535" text-anchor="middle" font-weight="bold" font-size="14" fill="#009688">SQLite Database</text>
-    <line x1="60" y1="545" x2="220" y2="545" stroke="#009688"/>
-    <text x="60" y="565" font-size="12" fill="#333">+ equity_quotes table</text>
-    <text x="60" y="580" font-size="12" fill="#333">+ indexed by symbol/time</text>
-    <text x="60" y="595" font-size="12" fill="#333">+ daily rotation</text>
-    <text x="60" y="610" font-size="12" fill="#333">+ historical storage</text>
-  </g>
-  
-  <!-- Web Client -->
-  <g id="web-client">
-    <rect x="900" y="270" width="200" height="140" fill="#f3e5f5" stroke="#9c27b0" stroke-width="2" rx="5"/>
-    <text x="1000" y="295" text-anchor="middle" font-weight="bold" font-size="14" fill="#9c27b0">Web Client (JS)</text>
-    <line x1="910" y1="305" x2="1090" y2="305" stroke="#9c27b0"/>
-    <text x="910" y="325" font-size="12" fill="#333">+ MarketDataApp class</text>
-    <text x="910" y="340" font-size="12" fill="#333">+ socket.io client</text>
-    <text x="910" y="355" font-size="12" fill="#333">+ updateMarketData()</text>
-    <text x="910" y="370" font-size="12" fill="#333">+ createStockCard()</text>
-    <text x="910" y="385" font-size="12" fill="#333">+ real-time UI updates</text>
-    <text x="910" y="400" font-size="12" fill="#333">• DOM manipulation</text>
-  </g>
-  
-  <!-- Improved Data Flow Arrows with better spacing and no overlaps -->
-  
-  <!-- 1. Schwab API to schwabdev -->
-  <path d="M 250 130 L 320 130" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="285" y="120" font-size="11" fill="#333" text-anchor="middle">WebSocket</text>
-  <text x="285" y="145" font-size="11" fill="#333" text-anchor="middle">Messages</text>
-  
-  <!-- 2. schwabdev to Streamer -->
-  <path d="M 500 130 L 570 130" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="535" y="125" font-size="11" fill="#333" text-anchor="middle">stream</text>
-  
-  <!-- 3. Streamer to Flask App (curved path to avoid overlap) -->
-  <path d="M 620 230 Q 400 250 175 270" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="400" y="245" font-size="11" fill="#333" text-anchor="middle">message callback</text>
-  
-  <!-- 4. Flask App to Message Handler -->
-  <path d="M 300 360 L 370 360" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="335" y="350" font-size="11" fill="#333" text-anchor="middle">process</text>
-  
-  <!-- 5. Message Handler to SocketIO -->
-  <path d="M 590 330 L 650 330" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="620" y="325" font-size="11" fill="#333" text-anchor="middle">emit</text>
-  
-  <!-- 6. Message Handler to Database (curved path) -->
-  <path d="M 380 410 Q 300 470 140 510" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="260" y="455" font-size="11" fill="#333" text-anchor="middle">store</text>
-  
-  <!-- 7. SocketIO to Web Client -->
-  <path d="M 830 330 L 900 330" stroke="#333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
-  <text x="865" y="325" font-size="11" fill="#333" text-anchor="middle">WebSocket</text>
-  
-  <!-- 8. Subscription flow (reverse direction - curved to avoid overlaps) -->
-  <path d="M 900 390 Q 650 450 Q 400 480 Q 200 450 175 420" stroke="#666" stroke-width="2" fill="none" marker-end="url(#arrowhead)" stroke-dasharray="5,5"/>
-  <text x="550" y="470" font-size="11" fill="#666" text-anchor="middle">symbol subscriptions</text>
-  
-  <!-- Data Structure Box -->
-  <g id="data-structure">
-    <rect x="350" y="520" width="450" height="200" fill="#f5f5f5" stroke="#666" stroke-width="1" rx="5"/>
-    <text x="575" y="545" text-anchor="middle" font-weight="bold" font-size="14" fill="#333">Streaming Data Structure</text>
-    <line x1="360" y1="555" x2="790" y2="555" stroke="#666"/>
+
+  <!-- Market Data Module -->
+  <g id="market-data-module">
+    <rect x="350" y="350" width="300" height="180" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" rx="5"/>
+    <text x="500" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#1976d2">📈 Market Data Module</text>
+    <line x1="360" y1="385" x2="640" y2="385" stroke="#1976d2"/>
     
-    <!-- Market Data Object -->
-    <rect x="370" y="565" width="180" height="130" fill="#fff" stroke="#ccc" stroke-width="1" rx="3"/>
-    <text x="460" y="585" text-anchor="middle" font-weight="bold" font-size="12" fill="#333">market_data[symbol]</text>
-    <text x="375" y="605" font-size="11" fill="#333">• last_price: float</text>
-    <text x="375" y="620" font-size="11" fill="#333">• bid_price: float</text>
-    <text x="375" y="635" font-size="11" fill="#333">• ask_price: float</text>
-    <text x="375" y="650" font-size="11" fill="#333">• volume: int</text>
-    <text x="375" y="665" font-size="11" fill="#333">• net_change: float</text>
-    <text x="375" y="680" font-size="11" fill="#333">• timestamp: int</text>
+    <!-- MarketDataManager -->
+    <text x="370" y="405" font-weight="bold" font-size="12" fill="#1976d2">MarketDataManager (market_data.py)</text>
+    <text x="370" y="420" font-size="11" fill="#333">+ set_dependencies() + start_streaming()</text>
+    <text x="370" y="435" font-size="11" fill="#333">+ add_symbol() + remove_symbol()</text>
+    <text x="370" y="450" font-size="11" fill="#333">+ schwab_message_handler()</text>
     
-    <!-- Message Format -->
-    <rect x="570" y="565" width="210" height="130" fill="#fff" stroke="#ccc" stroke-width="1" rx="3"/>
-    <text x="675" y="585" text-anchor="middle" font-weight="bold" font-size="12" fill="#333">Schwab Message</text>
-    <text x="575" y="605" font-size="11" fill="#333">{</text>
-    <text x="580" y="620" font-size="11" fill="#333">  "data": [{</text>
-    <text x="585" y="635" font-size="11" fill="#333">    "service": "LEVELONE_EQUITIES",</text>
-    <text x="585" y="650" font-size="11" fill="#333">    "content": [{</text>
-    <text x="590" y="665" font-size="11" fill="#333">      "key": "AAPL",</text>
-    <text x="590" y="680" font-size="11" fill="#333">      "1": 150.25  // last price</text>
-    <text x="585" y="695" font-size="11" fill="#333">    }]</text>
+    <!-- Routes -->
+    <text x="370" y="470" font-weight="bold" font-size="12" fill="#1976d2">Blueprint (market_data_routes.py)</text>
+    <text x="370" y="485" font-size="11" fill="#333">/api/watchlist • /api/market-data</text>
+    <text x="370" y="500" font-size="11" fill="#333">/api/auth-status • WebSocket handlers</text>
+    
+    <line x1="360" y1="510" x2="640" y2="510" stroke="#1976d2"/>
+    <text x="370" y="525" font-size="11" fill="#333">• Watchlist persistence • Real-time streaming</text>
   </g>
-  
-  <!-- Legend -->
-  <g id="legend">
-    <rect x="850" y="520" width="350" height="140" fill="#f8f9fa" stroke="#ddd" stroke-width="1" rx="5"/>
-    <text x="1025" y="545" text-anchor="middle" font-weight="bold" font-size="14" fill="#333">Data Flow Legend</text>
-    <line x1="860" y1="555" x2="1190" y2="555" stroke="#ddd"/>
-    
-    <line x1="870" y1="575" x2="900" y2="575" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
-    <text x="910" y="580" font-size="12" fill="#333">Real-time data flow</text>
-    
-    <line x1="870" y1="595" x2="900" y2="595" stroke="#666" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
-    <text x="910" y="600" font-size="12" fill="#333">Control/subscription flow</text>
-    
-    <text x="870" y="620" font-size="12" fill="#333">Field Codes: 1=Last, 2=Bid, 3=Ask, 8=Volume</text>
-    <text x="870" y="635" font-size="12" fill="#333">Update Rate: Real-time (millisecond latency)</text>
-    <text x="870" y="650" font-size="12" fill="#333">Message Format: JSON with numeric field identifiers</text>
+
+  <!-- Options Flow Module -->
+  <g id="options-flow-module">
+    <rect x="700" y="350" width="300" height="130" fill="#fff3e0" stroke="#f57c00" stroke-width="2" rx="5"/>
+    <text x="850" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#f57c00">📊 Options Flow Module</text>
+    <text x="850" y="395" text-anchor="middle" font-size="12" fill="#333">(Future Implementation)</text>
+    <line x1="710" y1="405" x2="990" y2="405" stroke="#f57c00"/>
+    <text x="720" y="425" font-size="12" fill="#333">OptionsFlowMonitor (options_flow.py)</text>
+    <text x="720" y="440" font-size="12" fill="#333">Blueprint (options_flow_routes.py)</text>
+    <line x1="710" y1="450" x2="990" y2="450" stroke="#f57c00"/>
+    <text x="720" y="465" font-size="12" fill="#333">• Delta volume analysis</text>
   </g>
+
+  <!-- Mock Data Framework -->
+  <g id="mock-framework">
+    <rect x="1050" y="350" width="280" height="180" fill="#fce4ec" stroke="#e91e63" stroke-width="2" rx="5"/>
+    <text x="1190" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#e91e63">🎭 Mock Data Framework</text>
+    <text x="1190" y="395" text-anchor="middle" font-size="12" fill="#333">mock_data.py</text>
+    <line x1="1060" y1="405" x2="1320" y2="405" stroke="#e91e63"/>
+    
+    <text x="1070" y="425" font-weight="bold" font-size="12" fill="#e91e63">MockSchwabClient</text>
+    <text x="1070" y="440" font-size="11" fill="#333">+ stream: MockSchwabStreamer</text>
+    <text x="1070" y="455" font-size="11" fill="#333">+ get_quotes()</text>
+    
+    <text x="1070" y="475" font-weight="bold" font-size="12" fill="#e91e63">MockMarketDataGenerator</text>
+    <text x="1070" y="490" font-size="11" fill="#333">+ generate_quote() + set_market_conditions()</text>
+    <text x="1070" y="505" font-size="11" fill="#333">+ simulate_market_event()</text>
+    
+    <line x1="1060" y1="515" x2="1320" y2="515" stroke="#e91e63"/>
+    <text x="1070" y="530" font-size="11" fill="#333">• Complete market simulation</text>
+  </g>
+
+  <!-- Data Layer -->
+  <g id="data-layer">
+    <rect x="50" y="580" width="600" height="120" fill="#f5f5f5" stroke="#616161" stroke-width="2" rx="5"/>
+    <text x="350" y="605" text-anchor="middle" font-weight="bold" font-size="14" fill="#616161">📊 Data Layer</text>
+    <line x1="60" y1="615" x2="640" y2="615" stroke="#616161"/>
+    
+    <text x="70" y="635" font-weight="bold" font-size="12" fill="#616161">SQLite Databases</text>
+    <text x="70" y="650" font-size="11" fill="#333">• market_data_YYMMDD.db (Real data)</text>
+    <text x="70" y="665" font-size="11" fill="#333">• MOCK_market_data_YYMMDD.db (Mock data)</text>
+    
+    <text x="350" y="635" font-weight="bold" font-size="12" fill="#616161">Persistent Storage</text>
+    <text x="350" y="650" font-size="11" fill="#333">• watchlist.json (User symbols)</text>
+    <text x="350" y="665" font-size="11" fill="#333">• schwab_tokens.json (OAuth tokens)</text>
+    
+    <text x="500" y="635" font-weight="bold" font-size="12" fill="#616161">Separation</text>
+    <text x="500" y="650" font-size="11" fill="#333">• MOCK_ prefix isolation</text>
+    <text x="500" y="665" font-size="11" fill="#333">• Environment-controlled</text>
+  </g>
+
+  <!-- Web Interface -->
+  <g id="web-interface">
+    <rect x="700" y="580" width="320" height="120" fill="#e1f5fe" stroke="#0277bd" stroke-width="2" rx="5"/>
+    <text x="860" y="605" text-anchor="middle" font-weight="bold" font-size="14" fill="#0277bd">🌐 Web Interface</text>
+    <line x1="710" y1="615" x2="1010" y2="615" stroke="#0277bd"/>
+    
+    <text x="720" y="635" font-weight="bold" font-size="12" fill="#0277bd">Templates</text>
+    <text x="720" y="650" font-size="11" fill="#333">• login.html • index.html</text>
+    
+    <text x="850" y="635" font-weight="bold" font-size="12" fill="#0277bd">Static Assets</text>
+    <text x="850" y="650" font-size="11" fill="#333">• market_data.js (WebSocket client)</text>
+    <text x="850" y="665" font-size="11" fill="#333">• mock_indicators.css (UI styling)</text>
+  </g>
+
+  <!-- Testing Layer -->
+  <g id="testing-layer">
+    <rect x="1070" y="580" width="280" height="120" fill="#f3e5f5" stroke="#8e24aa" stroke-width="2" rx="5"/>
+    <text x="1210" y="605" text-anchor="middle" font-weight="bold" font-size="14" fill="#8e24aa">🧪 Testing Framework</text>
+    <line x1="1080" y1="615" x2="1340" y2="615" stroke="#8e24aa"/>
+    
+    <text x="1090" y="635" font-weight="bold" font-size="12" fill="#8e24aa">test_integration.py</text>
+    <text x="1090" y="650" font-size="11" fill="#333">• MarketDataStreamingTests</text>
+    <text x="1090" y="665" font-size="11" fill="#333">• Performance validation</text>
+    <text x="1090" y="680" font-size="11" fill="#333">• Quality assurance</text>
+  </g>
+
+  <!-- External Services -->
+  <g id="external-services">
+    <rect x="50" y="750" width="1300" height="80" fill="#ffebee" stroke="#d32f2f" stroke-width="2" rx="5" stroke-dasharray="5,5"/>
+    <text x="70" y="775" font-weight="bold" font-size="14" fill="#d32f2f">🌐 External Services</text>
+    <text x="70" y="795" font-size="12" fill="#333">Schwab WebSocket API • OAuth 2.0 Endpoints • Real-time Level 1 Equity Data</text>
+    <text x="70" y="815" font-size="12" fill="#333">Field Subscriptions: Last, Bid, Ask, Volume, High, Low, Net Change, Net Change %</text>
+  </g>
+
+  <!-- Connection Lines -->
+  <!-- Environment to App -->
+  <line x1="700" y1="140" x2="700" y2="170" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
   
+  <!-- App to Modules -->
+  <line x1="600" y1="310" x2="400" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="700" y1="310" x2="850" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="550" y1="270" x2="175" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  
+  <!-- Modules to Data -->
+  <line x1="500" y1="530" x2="350" y2="580" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Modules to Web -->
+  <line x1="650" y1="450" x2="700" y2="580" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Mock to Testing -->
+  <line x1="1190" y1="530" x2="1210" y2="580" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+
   <!-- Arrow marker definition -->
   <defs>
     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
     </marker>
   </defs>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="50" y="870" width="600" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="5"/>
+    <text x="60" y="890" font-weight="bold" font-size="12" fill="#333">Architecture Features:</text>
+    <text x="60" y="905" font-size="11" fill="#333">🎛️ Environment-driven feature toggles • 📦 Flask blueprint modularity • 🔄 Dependency injection</text>
+    <text x="60" y="920" font-size="11" fill="#333">🎭 Mock/Real mode switching • 📊 Automatic data separation • ⚡ Real-time WebSocket streaming</text>
+  </g>
 </svg>

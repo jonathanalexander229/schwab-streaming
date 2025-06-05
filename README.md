@@ -1,47 +1,60 @@
 # Schwab Market Data Streaming App
 
-A Python web application that streams real-time market data using the Charles Schwab API with **manual OAuth 2.0 authentication** and comprehensive **mock data testing framework**.
+A **modular Python web application** that streams real-time market data using the Charles Schwab API with **manual OAuth 2.0 authentication** and comprehensive **mock data testing framework**.
 
-## 🏗️ Architecture Overview
+## 🏗️ Modular Architecture Overview
 
-The application uses a sophisticated real-time streaming architecture that combines Schwab's native WebSocket API with Flask-SocketIO for client distribution, plus a complete mock data system for testing and development.
+The application uses a **modular microservice-like architecture** with feature toggles, separate Flask blueprints, and environment-driven configuration for scalable development and deployment.
 
-### Key Components:
-- **Schwab WebSocket API**: Direct real-time Level 1 equity quotes
-- **schwabdev.Client**: Python wrapper handling OAuth 2.0 and streaming
-- **Flask Application**: Main controller managing connections and data flow  
-- **Message Handler**: Processes incoming WebSocket messages and filters data
-- **Flask-SocketIO**: Distributes real-time updates to web clients
-- **SQLite Database**: Persists historical market data with daily rotation
-- **Mock Data Framework**: Complete simulation system for testing
+### Core Architecture:
+- **🎛️ Feature Toggle System**: Environment-controlled module loading (`ENABLE_MARKET_DATA`, `ENABLE_OPTIONS_FLOW`)
+- **📦 Flask Blueprints**: Modular route organization with independent initialization
+- **🔄 Dependency Injection**: Loose coupling between modules through manager pattern
+- **🎭 Mock/Real Mode Switching**: Seamless environment-controlled data source switching
+- **📊 Persistent Data Layer**: SQLite with automatic mock/real data separation
 
-## 📁 Project Structure
+### Key Modules:
+- **🔐 Authentication Module** (`auth.py`): OAuth 2.0 + mock client factory
+- **📈 Market Data Module** (`market_data.py`, `market_data_routes.py`): Real-time equity streaming
+- **📊 Options Flow Module** (`options_flow.py`, `options_flow_routes.py`): Options analysis (ready for future)
+- **🎭 Mock Data Framework** (`mock_data.py`): Complete market simulation system
+- **⚙️ App Orchestrator** (`app.py`): Feature initialization and blueprint registration
+
+## 📁 Modular Project Structure
 
 ```
-schwab-market-app/
-├── auth.py                    # OAuth authentication with mock support
-├── app.py                     # Main Flask application (update required)
-├── mock_data.py               # Mock data framework (NEW)
-├── requirements.txt           # Python dependencies
-├── .env.example              # Environment configuration template
-├── schwab_tokens.json        # Token storage (auto-generated)
-├── templates/                # HTML templates
-│   ├── login.html            # Login page
-│   ├── index.html            # Main application (updated)
-│   └── options_flow.html     # Options flow monitor (updated)
-├── static/                   # Static assets
-│   ├── css/
-│   │   ├── login.css         # Login page styles
-│   │   ├── main.css          # Main application styles
-│   │   ├── options_flow.css  # Options flow styles
-│   │   └── mock_indicators.css # Mock mode UI indicators (NEW)
-│   └── js/
-│       ├── market_data.js    # Equity streaming functionality
-│       ├── options_flow.js   # Options flow functionality
-│       └── mock_indicators.js # Mock mode UI management (NEW)
-└── data/                     # Database storage
-    ├── market_data_YYMMDD.db     # Real data
-    └── MOCK_market_data_YYMMDD.db # Mock data (separate)
+schwab-streaming/
+├── 🎛️ Core Application
+│   ├── app.py                     # Feature orchestrator & Flask app
+│   ├── auth.py                    # Authentication with mock/real client factory
+│   └── requirements.txt           # Python dependencies
+├── 📈 Market Data Module
+│   ├── market_data.py             # MarketDataManager class
+│   ├── market_data_routes.py      # Market data Flask blueprint  
+│   └── watchlist.json             # Persistent watchlist storage
+├── 📊 Options Flow Module (Future)
+│   ├── options_flow.py            # OptionsFlowMonitor class
+│   └── options_flow_routes.py     # Options flow Flask blueprint
+├── 🎭 Testing & Mock Framework
+│   ├── mock_data.py               # Complete mock data simulation
+│   └── test_integration.py        # Integration test suite
+├── 🌐 Web Interface
+│   ├── templates/
+│   │   ├── login.html             # Authentication page
+│   │   └── index.html             # Market data interface
+│   └── static/
+│       ├── css/
+│       │   ├── main.css           # Core application styles
+│       │   └── mock_indicators.css # Mock mode UI indicators
+│       └── js/
+│           └── market_data.js     # Real-time streaming client
+├── 📊 Data Layer
+│   └── data/                      # SQLite databases
+│       ├── market_data_YYMMDD.db      # Real market data
+│       └── MOCK_market_data_YYMMDD.db # Mock data (separate)
+└── ⚙️ Configuration
+    ├── .env.example               # Environment template
+    └── .env                       # Environment configuration
 ```
 
 ## 🚀 Quick Setup
@@ -51,36 +64,68 @@ schwab-market-app/
 pip install -r requirements.txt
 ```
 
-### 2. Add Mock Framework Files
-Create these new files:
-- `mock_data.py` (complete mock framework)
-- `static/css/mock_indicators.css` (UI indicators)
-- `static/js/mock_indicators.js` (mock mode management)
-
-### 3. Update Existing Files
-Update these files with mock support:
-- `auth.py` (add mock client support)
-- `app.py` (add database separation and mock routes)
-- `templates/index.html` (add mock indicators)
-- `templates/options_flow.html` (add mock indicators)
-
-### 4. Configure Environment (Optional)
+### 2. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env with your Schwab API credentials (optional - works without them)
+# Edit .env with your settings:
 
-# Add mock configuration
-echo "USE_MOCK_DATA=false" >> .env
+# Feature toggles
+ENABLE_MARKET_DATA=true
+ENABLE_OPTIONS_FLOW=false
+
+# Data source mode
+USE_MOCK_DATA=false  # true for mock data, false for real Schwab API
+
+# Schwab API credentials (optional - only needed for real data)
+SCHWAB_APP_KEY=your_app_key_here
+SCHWAB_APP_SECRET=your_app_secret_here
 ```
 
-### 5. Run the Application
+### 3. Run the Application
 ```bash
+# Using environment variables
+USE_MOCK_DATA=true python app.py
+
+# Or with .env configuration
 python app.py
 ```
 
-The app will prompt you to choose between:
-- **Schwab API** (real data - requires authentication)
-- **Mock data** (simulated data - no authentication needed)
+### 4. Access the Application
+- **Mock Mode**: Instant access with simulated data
+- **Real Mode**: OAuth authentication with Schwab API
+
+## 🏗️ Modular Architecture Details
+
+### **Feature Toggle System**
+```python
+# Environment-driven feature loading
+ENABLE_MARKET_DATA=true    # Load market data module
+ENABLE_OPTIONS_FLOW=false  # Skip options flow module
+USE_MOCK_DATA=true         # Use mock data instead of Schwab API
+```
+
+### **Module Independence**
+- **Market Data Module**: Standalone with `MarketDataManager` class
+- **Options Flow Module**: Independent with `OptionsFlowMonitor` class  
+- **Mock Framework**: Complete simulation without external dependencies
+- **Flask Blueprints**: Modular route registration with `/api` namespacing
+
+### **Dependency Injection Pattern**
+```python
+# Loose coupling through manager pattern
+manager = MarketDataManager(data_dir)
+manager.set_dependencies(schwab_client, schwab_streamer, socketio, is_mock_mode)
+
+# Feature initialization with dependency injection
+initialize_market_data_feature(is_mock_mode)
+initialize_options_flow_feature(is_mock_mode)
+```
+
+### **Data Separation**
+- **Real Data**: `data/market_data_YYMMDD.db`
+- **Mock Data**: `data/MOCK_market_data_YYMMDD.db`
+- **Watchlist**: `watchlist.json` (persistent across sessions)
+- **Configuration**: `.env` file with environment variables
 
 ## 🧪 Testing Framework
 
