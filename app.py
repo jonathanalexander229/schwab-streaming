@@ -11,7 +11,6 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 from auth import get_schwab_client, get_schwab_streamer
-from options_flow_web import OptionsFlowWebMonitor, initialize_options_monitor, get_options_monitor
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +43,29 @@ market_data = {}
 watchlist = set()
 schwab_client = None
 schwab_streamer = None
+
+# Watchlist persistence functions
+def load_watchlist():
+    """Load watchlist from JSON file"""
+    try:
+        watchlist_file = os.path.join(Config.BASE_DIR, 'watchlist.json')
+        if os.path.exists(watchlist_file):
+            with open(watchlist_file, 'r') as f:
+                data = json.load(f)
+                return set(data.get('symbols', []))
+    except Exception as e:
+        logger.error(f"Error loading watchlist: {e}")
+    return set()
+
+def save_watchlist():
+    """Save watchlist to JSON file"""
+    try:
+        watchlist_file = os.path.join(Config.BASE_DIR, 'watchlist.json')
+        with open(watchlist_file, 'w') as f:
+            json.dump({'symbols': list(watchlist)}, f, indent=2)
+        logger.info(f"Watchlist saved with {len(watchlist)} symbols")
+    except Exception as e:
+        logger.error(f"Error saving watchlist: {e}")
 
 # Global flag to track if we're in mock mode (avoids session context issues)
 global_mock_mode = False
@@ -99,23 +121,6 @@ def get_db_connection(is_mock_mode=None):
     )
     ''')
     
-    # New options flow table with data source tracking
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS options_flow (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol TEXT,
-        timestamp INTEGER,
-        call_delta_vol REAL,
-        put_delta_vol REAL,
-        net_delta REAL,
-        delta_ratio REAL,
-        call_volume INTEGER,
-        put_volume INTEGER,
-        underlying_price REAL,
-        market_status TEXT,
-        data_source TEXT DEFAULT 'UNKNOWN'
-    )
-    ''')
     
     # Metadata table to track data source
     cursor.execute('''
@@ -143,7 +148,6 @@ def get_db_connection(is_mock_mode=None):
         ))
     
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_equity_symbol_ts ON equity_quotes (symbol, timestamp)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_options_symbol_ts ON options_flow (symbol, timestamp)')
     conn.commit()
     return conn
 
@@ -246,16 +250,6 @@ def index():
         return redirect(url_for('login'))
     return render_template('index.html')
 
-@app.route('/options-flow')
-def options_flow():
-    """Options flow monitoring page"""
-    if not session.get('authenticated'):
-        return redirect(url_for('login'))
-    
-    options_monitor = get_options_monitor()
-    current_symbol = options_monitor.symbol if options_monitor else 'SPY'
-    
-    return render_template('options_flow.html', current_symbol=current_symbol)
 
 @app.route('/login')
 def login():
@@ -294,13 +288,6 @@ def authenticate():
             logger.info(f"Global mock_mode: {global_mock_mode}")
             logger.info(f"Client class: {schwab_client.__class__.__name__}")
             
-            # Initialize options flow monitor
-            options_monitor = get_options_monitor()
-            if options_monitor:
-                options_monitor.set_dependencies(schwab_client, socketio, 
-                    lambda: get_db_connection(is_mock_mode))
-                if not options_monitor.is_running:
-                    options_monitor.start_monitoring(30)
             
             if is_mock_mode:
                 flash('🎭 Using MOCK data mode - Data is simulated for testing', 'warning')
@@ -329,10 +316,6 @@ def authenticate():
 def logout():
     global global_mock_mode
     
-    # Stop options monitor if running
-    options_monitor = get_options_monitor()
-    if options_monitor and options_monitor.is_running:
-        options_monitor.stop_monitoring()
     
     session.clear()
     global_mock_mode = False  # Reset global flag
@@ -359,6 +342,7 @@ def add_to_watchlist():
             return jsonify({'error': 'Symbol is required'}), 400
         
         watchlist.add(symbol)
+        save_watchlist()  # Persist changes
         
         # If we have Schwab streamer, subscribe to the symbol
         if schwab_streamer:
@@ -392,6 +376,7 @@ def remove_from_watchlist():
         
         if symbol in watchlist:
             watchlist.remove(symbol)
+            save_watchlist()  # Persist changes
             
             if symbol in market_data:
                 del market_data[symbol]
@@ -417,68 +402,6 @@ def get_market_data():
     
     return jsonify(response_data)
 
-# API Routes for Options Flow
-@app.route('/api/options-flow/current')
-def get_current_options_flow():
-    """Get current options flow data"""
-    if not session.get('authenticated'):
-        return jsonify({'error': 'Not authenticated'}), 401
-    
-    try:
-        options_monitor = get_options_monitor()
-        if not options_monitor:
-            return jsonify({'error': 'Options monitor not initialized'}), 500
-        
-        current_data = options_monitor.get_current_data()
-        return jsonify(current_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting current options flow: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/options-flow/historical')
-def get_historical_options_flow():
-    """Get historical options flow data"""
-    if not session.get('authenticated'):
-        return jsonify({'error': 'Not authenticated'}), 401
-    
-    try:
-        limit = request.args.get('limit', type=int)
-        
-        options_monitor = get_options_monitor()
-        if not options_monitor:
-            return jsonify({'error': 'Options monitor not initialized'}), 500
-        
-        historical_data = options_monitor.get_historical_data(limit)
-        return jsonify(historical_data)
-        
-    except Exception as e:
-        logger.error(f"Error getting historical options flow: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/options-flow/symbol', methods=['POST'])
-def change_options_symbol():
-    """Change the options flow monitoring symbol"""
-    if not session.get('authenticated'):
-        return jsonify({'error': 'Not authenticated'}), 401
-    
-    try:
-        data = request.get_json()
-        new_symbol = data.get('symbol', '').upper().strip()
-        
-        if not new_symbol:
-            return jsonify({'error': 'Symbol is required'}), 400
-        
-        options_monitor = get_options_monitor()
-        if not options_monitor:
-            return jsonify({'error': 'Options monitor not initialized'}), 500
-        
-        options_monitor.change_symbol(new_symbol)
-        return jsonify({'success': True, 'symbol': new_symbol})
-        
-    except Exception as e:
-        logger.error(f"Error changing options symbol: {e}")
-        return jsonify({'error': str(e)}), 500
 
 # Enhanced API Routes for Mock Testing and Admin
 @app.route('/api/auth-status')
@@ -493,7 +416,6 @@ def auth_status():
         'has_streamer': schwab_streamer is not None,
         'data_source': 'MOCK' if is_mock_mode else 'SCHWAB_API',
         'database_prefix': 'MOCK_' if is_mock_mode else '',
-        'options_monitor_running': get_options_monitor().is_running if get_options_monitor() else False
     })
 
 @app.route('/api/debug/session')
@@ -636,6 +558,7 @@ def handle_add_symbol(data):
     symbol = data.get('symbol', '').upper().strip()
     if symbol and symbol not in watchlist:
         watchlist.add(symbol)
+        save_watchlist()  # Persist changes
         
         if schwab_streamer:
             try:
@@ -663,6 +586,7 @@ def handle_remove_symbol(data):
     symbol = data.get('symbol', '').upper().strip()
     if symbol in watchlist:
         watchlist.remove(symbol)
+        save_watchlist()  # Persist changes
         
         if symbol in market_data:
             del market_data[symbol]
@@ -670,42 +594,19 @@ def handle_remove_symbol(data):
         emit('watchlist_updated', {'watchlist': list(watchlist)}, broadcast=True)
         emit('symbol_removed', {'symbol': symbol}, broadcast=True)
 
-# WebSocket Events for Options Flow
-@socketio.on('change_options_symbol')
-def handle_change_options_symbol(data):
-    """Handle options symbol change via WebSocket"""
-    if not session.get('authenticated'):
-        emit('error', {'message': 'Not authenticated'})
-        return
-    
-    try:
-        new_symbol = data.get('symbol', '').upper().strip()
-        
-        if not new_symbol:
-            emit('error', {'message': 'Symbol is required'})
-            return
-        
-        options_monitor = get_options_monitor()
-        if not options_monitor:
-            emit('error', {'message': 'Options monitor not initialized'})
-            return
-        
-        options_monitor.change_symbol(new_symbol)
-        emit('options_symbol_changed', {'symbol': new_symbol}, broadcast=True)
-        logger.info(f"Options symbol changed to {new_symbol} via WebSocket")
-        
-    except Exception as e:
-        logger.error(f"Error changing options symbol via WebSocket: {e}")
-        emit('error', {'message': str(e)})
 
 # Enhanced initialization with mock/real separation
 def initialize_app():
     """Enhanced initialization with proper .env control and no prompts"""
-    global schwab_client, schwab_streamer, global_mock_mode
+    global schwab_client, schwab_streamer, global_mock_mode, watchlist
     
     print("\n" + "="*80)
-    print("🚀 SCHWAB MARKET DATA STREAMING APP WITH OPTIONS FLOW")
+    print("🚀 SCHWAB MARKET DATA STREAMING APP")
     print("="*80)
+    
+    # Load watchlist from file
+    watchlist = load_watchlist()
+    print(f"📋 Loaded watchlist with {len(watchlist)} symbols: {', '.join(list(watchlist))}")
     
     # Load environment variables first
     load_dotenv()
@@ -722,9 +623,6 @@ def initialize_app():
     
     print("Initializing connection...")
     
-    # Initialize options flow monitor
-    options_monitor = initialize_options_monitor("SPY", 20, 100)
-    logger.info("Options flow monitor initialized")
     
     # Get client
     schwab_client = get_schwab_client(use_mock)
@@ -746,27 +644,41 @@ def initialize_app():
             print("   • Data saved to: data/market_data_YYMMDD.db")
             print("   • Real-time market streaming enabled")
         
-        # Set dependencies with proper database connection
-        options_monitor.set_dependencies(
-            schwab_client, 
-            socketio, 
-            lambda: get_db_connection(is_mock_mode)
-        )
         
         # Start the streamer
         try:
             schwab_streamer.start(schwab_message_handler)
             print("✅ Market data streamer started")
             
-            # Subscribe to default symbol
-            default_symbol = "SPY"
-            if is_mock_mode:
-                schwab_streamer.add_symbol(default_symbol)
+            # Subscribe to all watchlist symbols
+            if watchlist:
+                for symbol in watchlist:
+                    try:
+                        if is_mock_mode:
+                            schwab_streamer.add_symbol(symbol)
+                            logger.info(f"Added {symbol} to mock stream")
+                        else:
+                            schwab_streamer.send(schwab_streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                            logger.info(f"Sent subscription request for {symbol}")
+                        
+                        # Add a small delay between subscriptions to avoid rate limits
+                        time.sleep(0.1)
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to subscribe to {symbol}: {e}")
+                        
+                print(f"✅ Subscribed to {len(watchlist)} symbols: {', '.join(list(watchlist))}")
             else:
-                schwab_streamer.send(schwab_streamer.level_one_equities(default_symbol, "0,1,2,3,4,5,8,12,13,29,30"))
-            
-            watchlist.add(default_symbol)
-            print(f"✅ Subscribed to {default_symbol}")
+                # Subscribe to default symbol if no watchlist
+                default_symbol = "SPY"
+                if is_mock_mode:
+                    schwab_streamer.add_symbol(default_symbol)
+                else:
+                    schwab_streamer.send(schwab_streamer.level_one_equities(default_symbol, "0,1,2,3,4,5,8,12,13,29,30"))
+                
+                watchlist.add(default_symbol)
+                save_watchlist()  # Save the default symbol
+                print(f"✅ Subscribed to default symbol: {default_symbol}")
             
         except Exception as e:
             print(f"⚠️  Could not start streamer: {e}")
@@ -776,7 +688,6 @@ def initialize_app():
     
     print(f"🌐 Starting web server at http://localhost:{Config.PORT}")
     print("📊 Main app: Add stock symbols to start streaming market data")
-    print("📈 Options flow: Monitor delta×volume analysis at /options-flow")
     
     if is_mock_mode:
         print("="*80)
@@ -803,9 +714,6 @@ if __name__ == '__main__':
         print("\n👋 Application stopped by user")
         
         # Clean shutdown
-        options_monitor = get_options_monitor()
-        if options_monitor and options_monitor.is_running:
-            options_monitor.stop_monitoring()
         
         if schwab_streamer:
             schwab_streamer.stop()

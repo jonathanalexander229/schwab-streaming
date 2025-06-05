@@ -437,11 +437,11 @@ class MarketDataApp {
         card.classList.add('flash');
         setTimeout(() => card.classList.remove('flash'), 500);
         
-        if (data.last_price != null) {
+        if (data.last_price != null && typeof data.last_price === 'number') {
             document.getElementById('price-' + symbol).textContent = '$' + data.last_price.toFixed(2);
         }
         
-        if (data.net_change != null) {
+        if (data.net_change != null && typeof data.net_change === 'number') {
             const changeEl = document.getElementById('change-' + symbol);
             const change = data.net_change;
             const changeClass = change > 0 ? 'positive' : (change < 0 ? 'negative' : 'neutral');
@@ -451,7 +451,7 @@ class MarketDataApp {
             changeEl.className = 'change-amount ' + changeClass;
         }
         
-        if (data.net_change_percent != null) {
+        if (data.net_change_percent != null && typeof data.net_change_percent === 'number') {
             const percentEl = document.getElementById('percent-' + symbol);
             const percent = data.net_change_percent;
             const percentClass = percent > 0 ? 'positive' : (percent < 0 ? 'negative' : 'neutral');
@@ -461,11 +461,11 @@ class MarketDataApp {
             percentEl.className = 'change-percent ' + percentClass;
         }
         
-        if (data.bid_price != null) document.getElementById('bid-' + symbol).textContent = '$' + data.bid_price.toFixed(2);
-        if (data.ask_price != null) document.getElementById('ask-' + symbol).textContent = '$' + data.ask_price.toFixed(2);
-        if (data.high_price != null) document.getElementById('high-' + symbol).textContent = '$' + data.high_price.toFixed(2);
-        if (data.low_price != null) document.getElementById('low-' + symbol).textContent = '$' + data.low_price.toFixed(2);
-        if (data.volume != null) document.getElementById('volume-' + symbol).textContent = this.formatVolume(data.volume);
+        if (data.bid_price != null && typeof data.bid_price === 'number') document.getElementById('bid-' + symbol).textContent = '$' + data.bid_price.toFixed(2);
+        if (data.ask_price != null && typeof data.ask_price === 'number') document.getElementById('ask-' + symbol).textContent = '$' + data.ask_price.toFixed(2);
+        if (data.high_price != null && typeof data.high_price === 'number') document.getElementById('high-' + symbol).textContent = '$' + data.high_price.toFixed(2);
+        if (data.low_price != null && typeof data.low_price === 'number') document.getElementById('low-' + symbol).textContent = '$' + data.low_price.toFixed(2);
+        if (data.volume != null && typeof data.volume === 'number') document.getElementById('volume-' + symbol).textContent = this.formatVolume(data.volume);
         
         if (data.timestamp) {
             const date = new Date(data.timestamp);
