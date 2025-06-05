@@ -47,7 +47,7 @@ jobs:
     - name: Verify installation
       run: |
         python -c "import flask; print(f'Flask: {flask.__version__}')"
-        python -c "import socketio; print(f'SocketIO: {socketio.__version__}')"
+        python -c "import socketio; print('SocketIO imported successfully')"
         python -c "import schwabdev; print('schwabdev imported successfully')"
 
     - name: Create test data directory
