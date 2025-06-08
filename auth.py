@@ -5,19 +5,12 @@ import schwabdev
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
 
-def get_schwab_client(use_mock=False):
+def get_schwab_client():
     """
-    Initialize and return a Schwab client for API access.
-    If `use_mock` is True, it will return a mock client instead.
-    This is useful for testing without hitting the real API.
+    Initialize and return a real Schwab client for API access.
     Returns:    
-        schwabdev.Client or MockSchwabClient: The Schwab client instance.
+        schwabdev.Client: The Schwab client instance or None if failed.
     """
-    if use_mock or os.getenv('USE_MOCK_DATA', 'false').lower() == 'true':
-        from mock_data import MockSchwabClient
-        print("🎭 Using mock Schwab client")
-        return MockSchwabClient()
-    
     try:
         # Load environment variables
         dotenv.load_dotenv()
@@ -42,9 +35,9 @@ def get_schwab_client(use_mock=False):
 
 def get_schwab_streamer():
     """
-    Get the Schwab streamer object for real-time data.
+    Get the real Schwab streamer object for real-time data.
     Returns:
-        schwabdev.Streamer: The Schwab streamer instance if connected, otherwise None.
+        schwabdev.Streamer: The Schwab streamer instance if available, otherwise None.
     """
     client = get_schwab_client()
     if client:
@@ -59,7 +52,10 @@ def require_auth(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get('authenticated'):
+        authenticated = session.get('authenticated')
+        print(f"🔍 require_auth check: path={request.path}, authenticated={authenticated}, session_keys={list(session.keys())}")
+        
+        if not authenticated:
             # Check if this is an API request (JSON content type or /api/ path)
             if (request.is_json or 
                 request.path.startswith('/api/') or 
@@ -67,6 +63,7 @@ def require_auth(f):
                 return jsonify({'error': 'Not authenticated'}), 401
             else:
                 # HTML request - redirect to login
+                print(f"🔄 Redirecting to login from {request.path}")
                 return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function

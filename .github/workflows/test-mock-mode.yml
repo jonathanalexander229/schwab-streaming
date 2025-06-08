@@ -63,7 +63,7 @@ jobs:
         python -c "
         print('Testing basic imports...')
         from mock_data import MockMarketDataGenerator, MockSchwabStreamer
-        from market_data import MarketDataManager
+        from features.market_data import MarketDataManager
         print('✓ All imports successful')
         "
 
@@ -156,7 +156,7 @@ jobs:
     - name: Test database functionality
       run: |
         python -c "
-        from market_data import MarketDataManager
+        from features.market_data import MarketDataManager
         import tempfile
         
         print('Testing database functionality...')
@@ -189,7 +189,7 @@ jobs:
     - name: Test error handling
       run: |
         python -c "
-        from market_data import MarketDataManager
+        from features.market_data import MarketDataManager
         import tempfile
         import json
         
@@ -201,14 +201,14 @@ jobs:
             
             # Test invalid JSON handling
             try:
-                manager._schwab_message_handler('invalid json')
+                manager.equity_stream_manager._process_raw_message('invalid json')
                 print('  ✓ Invalid JSON handled gracefully')
             except Exception as e:
                 print(f'  ⚠ Invalid JSON caused error: {e}')
             
             # Test empty message handling
             try:
-                manager._schwab_message_handler('{}')
+                manager.equity_stream_manager._process_raw_message('{}')
                 print('  ✓ Empty message handled gracefully')
             except Exception as e:
                 print(f'  ⚠ Empty message caused error: {e}')

@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_socketio import SocketIO
 from dotenv import load_dotenv
 from auth import get_schwab_client, get_schwab_streamer, require_auth
-from core import FeatureManager
+from features.feature_manager import FeatureManager
 
 # Load environment variables
 load_dotenv()
@@ -51,8 +51,15 @@ def _initialize_features(use_mock: bool = False):
     """Initialize features based on configuration"""
     if Config.ENABLE_MARKET_DATA:
         try:
-            schwab_client = get_schwab_client(use_mock=use_mock)
-            schwab_streamer = get_schwab_streamer()
+            if use_mock:
+                # Use mock components directly for mock mode
+                from mock_data import MockSchwabClient, MockSchwabStreamer
+                schwab_client = MockSchwabClient()
+                schwab_streamer = MockSchwabStreamer()
+            else:
+                # Use real Schwab components for real mode
+                schwab_client = get_schwab_client()
+                schwab_streamer = get_schwab_streamer()
             
             market_data_manager = feature_manager.initialize_market_data(
                 schwab_client, schwab_streamer, use_mock
@@ -60,6 +67,8 @@ def _initialize_features(use_mock: bool = False):
             
             if market_data_manager:
                 logger.info(f"✅ Market data initialized ({'mock' if use_mock else 'real'} mode)")
+                logger.info(f"📋 Manager watchlist: {market_data_manager.get_watchlist()}")
+                logger.info(f"🎭 Manager mock mode: {market_data_manager.is_mock_mode}")
             else:
                 logger.error("❌ Failed to initialize market data")
                 
@@ -86,40 +95,45 @@ def login():
 def authenticate():
     """Enhanced authentication with mock mode tracking"""
     try:
-        # Determine if using mock mode
+        # Determine if using mock mode - check this FIRST before any auth
         use_mock = (
             request.args.get('mock', 'false').lower() == 'true' or
             os.getenv('USE_MOCK_DATA', 'false').lower() == 'true'
         )
         
-        schwab_client = get_schwab_client(use_mock)
-        
-        if schwab_client:
-            session['authenticated'] = True
-            session.permanent = True
-            
-            # Determine if we're actually in mock mode by checking the client class
-            is_mock_mode = hasattr(schwab_client, '__class__') and 'Mock' in schwab_client.__class__.__name__
-            session['mock_mode'] = is_mock_mode
-            
-            # Debug logging
-            logger.info(f"Authentication completed - Mock mode: {is_mock_mode}")
-            logger.info(f"Client class: {schwab_client.__class__.__name__}")
-            
-            # Initialize enabled features
-            _initialize_features(is_mock_mode)
-            
-            if is_mock_mode:
-                flash('🎭 Using MOCK data mode - Data is simulated for testing', 'warning')
-            else:
-                flash('✅ Connected to Schwab API - Using REAL market data', 'success')
-        else:
-            # Fallback to mock mode
+        if use_mock:
+            # Skip all Schwab auth and go straight to mock mode
             session['authenticated'] = True
             session['mock_mode'] = True
-            logger.info("Fallback to mock mode - no client available")
-            flash('⚠️ Could not connect to Schwab API. Using MOCK data mode.', 'error')
+            session.permanent = True
+            
+            logger.info("Using mock mode - skipping Schwab authentication")
+            flash('🎭 Using MOCK data mode - Data is simulated for testing', 'warning')
+            
+            # Initialize features with mock mode
             _initialize_features(use_mock=True)
+        else:
+            # Try real Schwab authentication
+            schwab_client = get_schwab_client()
+            
+            if schwab_client:
+                session['authenticated'] = True
+                session['mock_mode'] = False
+                session.permanent = True
+                
+                logger.info("Authentication completed - Real mode")
+                flash('✅ Connected to Schwab API - Using REAL market data', 'success')
+                
+                # Initialize features with real mode
+                _initialize_features(use_mock=False)
+            else:
+                # Fallback to mock mode
+                session['authenticated'] = True
+                session['mock_mode'] = True
+                session.permanent = True
+                logger.info("Fallback to mock mode - no client available")
+                flash('⚠️ Could not connect to Schwab API. Using MOCK data mode.', 'error')
+                _initialize_features(use_mock=True)
         
         return redirect(url_for('index'))
         
@@ -155,7 +169,7 @@ def index():
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")
-    from market_data_routes import market_data_bp
+    from features.market_data_routes import market_data_bp
     app.register_blueprint(market_data_bp)
     logger.info("✅ Market data routes registered")
 else:
@@ -184,11 +198,8 @@ def handle_connect():
 def handle_disconnect():
     logger.info('Client disconnected')
 
-# Initialize features at startup with mock mode by default
-with app.app_context():
-    logger.info("🚀 Initializing features at startup...")
-    _initialize_features(use_mock=True)  # Start with mock mode
-    logger.info(f"🎯 Features initialized: {list(feature_manager.features.keys())}")
+# Features will be initialized when user authenticates
+logger.info("🚀 Application started - features will be initialized on authentication")
 
 if __name__ == '__main__':
     logger.info(f"Starting Flask-SocketIO server on {Config.HOST}:{Config.PORT}")

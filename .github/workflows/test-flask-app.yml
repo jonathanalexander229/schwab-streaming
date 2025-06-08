@@ -56,7 +56,7 @@ jobs:
         
         # Test route modules
         try:
-            from market_data_routes import market_data_bp
+            from features.market_data_routes import market_data_bp
             print('  ✓ Market data routes imported successfully')
         except Exception as e:
             print(f'  ✗ Market data routes import failed: {e}')
@@ -213,7 +213,7 @@ jobs:
             print(\"  ✓ Mock streamer created\")
             
             # Test market data manager integration
-            from market_data import initialize_market_data_manager
+            from features.market_data import initialize_market_data_manager
             manager = initialize_market_data_manager(temp_dir)
             manager.set_dependencies(mock_client, mock_streamer, socketio, is_mock_mode=True)
             
@@ -237,7 +237,7 @@ jobs:
             
             # Test message handling
             message = mock_streamer._create_schwab_message(quote)
-            manager._schwab_message_handler(message)
+            manager.equity_stream_manager._process_raw_message(message)
             
             market_data = manager.get_market_data()
             assert \"AAPL\" in market_data[\"market_data\"], \"Market data not processed\"
@@ -267,7 +267,8 @@ jobs:
         
         # Register blueprints if needed
         try:
-            from market_data_routes import market_data_bp, initialize_market_data
+            from features.market_data_routes import market_data_bp
+            from features.market_data import initialize_market_data_manager
             if not any(bp.name == 'market_data' for bp in app.blueprints.values()):
                 app.register_blueprint(market_data_bp)
                 print('  ✓ Market data blueprint registered')
@@ -277,7 +278,8 @@ jobs:
                 mock_client = MockSchwabClient()
                 mock_streamer = MockSchwabStreamer()
                 
-                manager = initialize_market_data(temp_dir, mock_client, mock_streamer, socketio, is_mock_mode=True)
+                manager = initialize_market_data_manager(temp_dir)
+                manager.set_dependencies(mock_client, mock_streamer, socketio, is_mock_mode=True)
                 
                 client = app.test_client()
                 
