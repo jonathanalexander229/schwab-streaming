@@ -2,6 +2,8 @@
 import os
 import dotenv
 import schwabdev
+from functools import wraps
+from flask import session, redirect, url_for, jsonify, request
 
 def get_schwab_client(use_mock=False):
     """
@@ -48,3 +50,23 @@ def get_schwab_streamer():
     if client:
         return client.stream
     return None
+
+def require_auth(f):
+    """
+    Decorator to require authentication for routes.
+    Redirects unauthenticated users to login page for HTML requests.
+    Returns 401 JSON error for API requests.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('authenticated'):
+            # Check if this is an API request (JSON content type or /api/ path)
+            if (request.is_json or 
+                request.path.startswith('/api/') or 
+                request.headers.get('Content-Type') == 'application/json'):
+                return jsonify({'error': 'Not authenticated'}), 401
+            else:
+                # HTML request - redirect to login
+                return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function

@@ -10,7 +10,7 @@
 </head>
 <body>
     <!-- PROMINENT MOCK MODE BANNER -->
-    <div id="mockModeBanner" class="mock-mode-banner hidden">
+    <div id="mockModeBanner" class="mock-mode-banner{% if not session.get('mock_mode') %} hidden{% endif %}">
         <div class="mock-banner-content">
             <span class="mock-icon">🎭</span>
             <span class="mock-text">MOCK DATA MODE</span>
@@ -33,7 +33,7 @@
             <div style="display: flex; align-items: center; gap: 20px;">
                 <div class="status-indicator">
                     <div class="status-dot" id="connectionStatus"></div>
-                    <span id="connectionText">Connecting...</span>
+                    <span id="connectionText">Initializing...</span>
                 </div>
                 <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
             </div>
