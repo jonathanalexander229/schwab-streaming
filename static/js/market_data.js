@@ -10,6 +10,8 @@ class MarketDataApp {
         // Set initial connection status
         this.updateConnectionStatus(false);
         
+        // Check auth status immediately (don't wait for socket)
+        this.checkMockMode();
         
         this.initializeEventListeners();
         this.setupSocketHandlers();

@@ -1,307 +1,281 @@
-# Schwab Market Data Streaming App
+# Schwab Streaming Application
 
-A **modular Python web application** that streams real-time market data using the Charles Schwab API with **manual OAuth 2.0 authentication** and comprehensive **mock data testing framework**.
+A modular Flask-based web application for streaming market data from Charles Schwab API with real-time visualization.
 
-## 🏗️ Modular Architecture Overview
+## Features
 
-The application uses a **modular microservice-like architecture** with feature toggles, separate Flask blueprints, and environment-driven configuration for scalable development and deployment.
+- 🔐 **Authentication**: Secure login with Schwab API or mock mode for testing
+- 📊 **Real-time Market Data**: Live streaming of equity quotes and prices
+- 📋 **Watchlist Management**: Add/remove symbols to track
+- 💾 **Data Storage**: SQLite database with automatic data separation (mock vs real)
+- 🎭 **Mock Mode**: Simulated market data for testing without hitting real API
+- 🌐 **WebSocket Support**: Real-time updates via Socket.IO
+- 📱 **Responsive UI**: Clean, modern interface that works on all devices
+- 🏗️ **Modular Architecture**: Clean separation of concerns for easy feature expansion
 
-### Core Architecture:
-- **🎛️ Feature Toggle System**: Environment-controlled module loading (`ENABLE_MARKET_DATA`, `ENABLE_OPTIONS_FLOW`)
-- **📦 Flask Blueprints**: Modular route organization with independent initialization
-- **🔄 Dependency Injection**: Loose coupling between modules through manager pattern
-- **🎭 Mock/Real Mode Switching**: Seamless environment-controlled data source switching
-- **📊 Persistent Data Layer**: SQLite with automatic mock/real data separation
+## Quick Start
 
-### Key Modules:
-- **🔐 Authentication Module** (`auth.py`): OAuth 2.0 + mock client factory
-- **📈 Market Data Module** (`market_data.py`, `market_data_routes.py`): Real-time equity streaming
-- **📊 Options Flow Module** (`options_flow.py`, `options_flow_routes.py`): Options analysis (ready for future)
-- **🎭 Mock Data Framework** (`mock_data.py`): Complete market simulation system
-- **⚙️ App Orchestrator** (`app.py`): Feature initialization and blueprint registration
+### Prerequisites
 
-## 📁 Modular Project Structure
+- Python 3.8+
+- Charles Schwab Developer Account (for real data)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd schwab_streaming
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Set up environment variables** (Optional - for real API)
+   ```bash
+   # Create .env file
+   SCHWAB_APP_KEY=your_app_key_here
+   SCHWAB_APP_SECRET=your_app_secret_here
+   FLASK_SECRET_KEY=your-secret-key-here
+   ```
+
+4. **Run the application**
+   ```bash
+   python app.py
+   ```
+
+5. **Open your browser** to `http://localhost:8000`
+
+## Usage
+
+### Authentication Options
+
+- **Mock Mode**: No API keys required - generates realistic simulated data
+- **Real API**: Requires Schwab developer credentials for live market data
+
+### Adding Symbols
+
+1. Enter a stock symbol (e.g., "AAPL", "MSFT") in the search box
+2. Click "Add to Watchlist" 
+3. Real-time quotes will appear automatically
+
+### Data Sources
+
+- **Real Mode**: Live data from Charles Schwab API
+- **Mock Mode**: Simulated realistic market movements for testing
+
+## Architecture
+
+### Modular Design
+
+The application follows a clean, modular architecture designed for maintainability and easy feature expansion:
+
+#### Core Components
+
+- **FeatureManager**: Centralized feature initialization and management
+- **StreamManager**: Generic streaming infrastructure for any data type
+- **SubscriptionManager**: Generic symbol subscription handling
+- **MarketDataManager**: Market data specific logic and database operations
+
+#### Package Structure
 
 ```
-schwab-streaming/
-├── 🎛️ Core Application
-│   ├── app.py                     # Feature orchestrator & Flask app
-│   ├── auth.py                    # Authentication with mock/real client factory
-│   └── requirements.txt           # Python dependencies
-├── 📈 Market Data Module
-│   ├── market_data.py             # MarketDataManager class
-│   ├── market_data_routes.py      # Market data Flask blueprint  
-│   └── watchlist.json             # Persistent watchlist storage
-├── 📊 Options Flow Module (Future)
-│   ├── options_flow.py            # OptionsFlowMonitor class
-│   └── options_flow_routes.py     # Options flow Flask blueprint
-├── 🎭 Testing & Mock Framework
-│   ├── mock_data.py               # Complete mock data simulation
-│   └── test_integration.py        # Integration test suite
-├── 🌐 Web Interface
-│   ├── templates/
-│   │   ├── login.html             # Authentication page
-│   │   └── index.html             # Market data interface
-│   └── static/
-│       ├── css/
-│       │   ├── main.css           # Core application styles
-│       │   └── mock_indicators.css # Mock mode UI indicators
-│       └── js/
-│           └── market_data.js     # Real-time streaming client
-├── 📊 Data Layer
-│   └── data/                      # SQLite databases
-│       ├── market_data_YYMMDD.db      # Real market data
-│       └── MOCK_market_data_YYMMDD.db # Mock data (separate)
-└── ⚙️ Configuration
-    ├── .env.example               # Environment template
-    └── .env                       # Environment configuration
+schwab_streaming/
+├── app.py                    # Simplified main Flask application (194 lines)
+├── auth.py                   # Authentication with @require_auth decorator
+├── core/                     # Core utilities and feature management
+│   ├── __init__.py
+│   └── feature_manager.py    # Centralized feature initialization
+├── streaming/                # Generic streaming infrastructure
+│   ├── __init__.py
+│   ├── stream_manager.py     # Generic streaming manager
+│   └── subscription_manager.py # Generic subscription handling
+├── market_data.py            # Market data manager (uses StreamManager)
+├── market_data_routes.py     # Market data API routes and WebSocket handlers
+├── mock_data.py              # Mock data generation
+├── templates/                # HTML templates
+├── static/                   # CSS/JS assets
+├── data/                     # SQLite databases
+└── requirements.txt          # Python dependencies
 ```
 
-## 🚀 Quick Setup
+### Benefits of Modular Architecture
 
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+1. **Clear Separation of Concerns**: Each component has a single responsibility
+2. **No Code Duplication**: `@require_auth` decorator eliminates repetitive auth checks
+3. **Easy Feature Expansion**: Adding new streaming features requires minimal core changes
+4. **Better Testing**: Can unit test streaming logic separately
+5. **Maintainable**: Clean package structure with well-defined interfaces
 
-### 2. Configure Environment
-```bash
-cp .env.example .env
-# Edit .env with your settings:
+### Adding New Streaming Features
 
-# Feature toggles
-ENABLE_MARKET_DATA=true
-ENABLE_OPTIONS_FLOW=false
+With the modular architecture, adding new streaming features is straightforward:
 
-# Data source mode
-USE_MOCK_DATA=false  # true for mock data, false for real Schwab API
-
-# Schwab API credentials (optional - only needed for real data)
-SCHWAB_APP_KEY=your_app_key_here
-SCHWAB_APP_SECRET=your_app_secret_here
-```
-
-### 3. Run the Application
-```bash
-# Using environment variables
-USE_MOCK_DATA=true python app.py
-
-# Or with .env configuration
-python app.py
-```
-
-### 4. Access the Application
-- **Mock Mode**: Instant access with simulated data
-- **Real Mode**: OAuth authentication with Schwab API
-
-## 🏗️ Modular Architecture Details
-
-### **Feature Toggle System**
 ```python
-# Environment-driven feature loading
-ENABLE_MARKET_DATA=true    # Load market data module
-ENABLE_OPTIONS_FLOW=false  # Skip options flow module
-USE_MOCK_DATA=true         # Use mock data instead of Schwab API
+# Example: Adding options streaming
+from core import FeatureManager
+from streaming import StreamManager
+
+# 1. Create options-specific manager
+class OptionsDataManager:
+    def __init__(self, data_dir):
+        self.stream_manager = StreamManager()
+        # Options-specific logic here
+
+# 2. Add to FeatureManager
+def initialize_options_data(self, schwab_client, schwab_streamer):
+    # Initialize options feature
+    pass
+
+# 3. Create routes blueprint
+from auth import require_auth
+
+@options_bp.route('/api/options/watchlist')
+@require_auth
+def get_options_watchlist():
+    manager = current_app.feature_manager.get_feature('options')
+    # Handle options-specific logic
 ```
 
-### **Module Independence**
-- **Market Data Module**: Standalone with `MarketDataManager` class
-- **Options Flow Module**: Independent with `OptionsFlowMonitor` class  
-- **Mock Framework**: Complete simulation without external dependencies
-- **Flask Blueprints**: Modular route registration with `/api` namespacing
+### Database Schema
 
-### **Dependency Injection Pattern**
-```python
-# Loose coupling through manager pattern
-manager = MarketDataManager(data_dir)
-manager.set_dependencies(schwab_client, schwab_streamer, socketio, is_mock_mode)
+**equity_quotes** table:
+- `symbol`: Stock symbol (e.g., AAPL)
+- `timestamp`: Unix timestamp in milliseconds
+- `last_price`: Current trading price
+- `bid_price`: Highest bid price
+- `ask_price`: Lowest ask price
+- `volume`: Total trading volume
+- `net_change`: Price change from previous close
+- `net_change_percent`: Percentage change
+- `high_price`: Daily high
+- `low_price`: Daily low
+- `data_source`: 'MOCK' or 'SCHWAB_API'
 
-# Feature initialization with dependency injection
-initialize_market_data_feature(is_mock_mode)
-initialize_options_flow_feature(is_mock_mode)
-```
+## Testing
 
-### **Data Separation**
-- **Real Data**: `data/market_data_YYMMDD.db`
-- **Mock Data**: `data/MOCK_market_data_YYMMDD.db`
-- **Watchlist**: `watchlist.json` (persistent across sessions)
-- **Configuration**: `.env` file with environment variables
+Run the test suite:
 
-## 🧪 Testing Framework
-
-### **Mock Data Features**
-- ✅ **Realistic Market Simulation**: Base prices, volatility, volume patterns
-- ✅ **Market Hours Awareness**: Pre-market, regular hours, after-hours behavior
-- ✅ **Separate Database Storage**: `MOCK_market_data_YYMMDD.db` vs `market_data_YYMMDD.db`
-- ✅ **UI Indicators**: Orange banners, badges, and card styling for mock mode
-- ✅ **Market Event Simulation**: Bull runs, bear crashes, volatility spikes
-- ✅ **Performance Testing**: Data generation speed and streaming rate validation
-
-### **Running Tests**
-
-#### **Unit Tests (Mock Framework Only)**
 ```bash
-# Test mock data generation and streaming
-python mock_data.py
+python run_tests.py
 ```
 
-#### **Quick Mock Validation**
-```bash
-# Fast validation of mock data quality
-python test_integration.py --quick
-```
+Tests include:
+- Mock data generation
+- Database operations
+- Field mapping validation
+- Authentication flows
+- Modular component integration
 
-#### **Full Integration Tests**
-```bash
-# Complete test suite including Flask app
-python test_integration.py --full
-```
+## Development
 
-#### **Create Simple Test Script**
-```bash
-# Generate standalone test script
-python test_integration.py --simple
-python simple_test.py
-```
+### Environment Variables
 
-### **Development with Mock Data**
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SCHWAB_APP_KEY` | Your Schwab API key | None |
+| `SCHWAB_APP_SECRET` | Your Schwab API secret | None |
+| `FLASK_SECRET_KEY` | Flask session secret | 'your-secret-key-here' |
+| `FLASK_DEBUG` | Enable debug mode | 'True' |
+| `USE_MOCK_DATA` | Force mock mode | 'false' |
+| `ENABLE_MARKET_DATA` | Enable market data feature | 'true' |
 
-#### **Using Environment Variable**
-```bash
-# Automatic mock mode
-export USE_MOCK_DATA=true
-python app.py
-```
+### Development Principles
 
-#### **Interactive Mode Selection**
-```bash
-python app.py
-# Choose option 2 when prompted for mock data
-```
+1. **Feature Toggles**: All features can be enabled/disabled via configuration
+2. **Dependency Injection**: External dependencies are injected rather than hardcoded
+3. **Generic Interfaces**: Streaming components work with any data type
+4. **Clean Authentication**: Single `@require_auth` decorator for all routes
+5. **Centralized Management**: FeatureManager handles all feature lifecycle
 
-#### **Testing Market Events**
-```bash
-# Trigger market events via API (mock mode only)
-curl -X POST http://localhost:8000/api/test/market-event \
-  -H "Content-Type: application/json" \
-  -d '{"event_type": "bullish_surge"}'
+### Mock Mode Features
 
-# Available events:
-# - bullish_surge
-# - bearish_crash  
-# - high_volatility
-# - low_volatility
-# - market_open
-# - market_close
-```
+- Realistic price movements with volatility
+- Market hours simulation
+- Bullish/bearish trend simulation
+- Volume and spread calculations
+- Event-based price changes (e.g., earnings, news)
 
-## 🎭 Mock vs Real Data
+## API Endpoints
 
-### **Data Storage Separation**
-- **Real Data**: `data/market_data_241201.db`
-- **Mock Data**: `data/MOCK_market_data_241201.db`
-- **No Data Mixing**: Completely separate databases and processing
+### Market Data
 
-### **UI Indicators**
-- **Mock Mode**: Orange banner, 🎭 icons, "[MOCK]" in page title
-- **Real Mode**: Green indicators, ✅ icons, "[LIVE]" in page title
-- **Connection Status**: Orange dot for mock, green dot for real
-- **Stock Cards**: Orange left border for mock data
+- `GET /api/watchlist` - Get current watchlist
+- `POST /api/watchlist` - Add symbol to watchlist
+- `DELETE /api/watchlist` - Remove symbol from watchlist
+- `GET /api/market-data` - Get current market data
+- `GET /api/auth-status` - Get authentication status
 
-### **Database Management**
-```bash
-# View database info
-curl http://localhost:8000/api/admin/data-info
+### Testing (Mock Mode Only)
 
-# Clean up mock databases
-curl -X POST http://localhost:8000/api/admin/cleanup-mock
-```
+- `POST /api/test/market-event` - Trigger simulated market events
 
-## 🔧 Getting Schwab API Credentials
+### Administration
 
-1. Visit [https://developer.schwab.com/](https://developer.schwab.com/)
-2. Create a developer account and wait for approval
-3. Create a new **Individual Developer** application
-4. **Important**: Set callback URL to: `https://127.0.0.1`
-5. Add your **App Key** and **App Secret** to `.env` file
+- `GET /api/admin/data-info` - Database information and statistics
+- `POST /api/admin/cleanup-mock` - Clean up mock database files
 
-## 🔐 Authentication Flow
+## Troubleshooting
 
-### **Real Data Mode**
-1. **Check for existing tokens** - If authenticated before, uses those
-2. **Try to refresh expired tokens** - Automatically refreshes if possible
-3. **Manual authentication** - Opens browser for Schwab login
-4. **Copy/paste redirect URL** - Secure manual verification
-5. **Tokens saved** - Automatic token management
+### Common Issues
 
-### **Mock Data Mode**
-1. **No authentication required** - Instant access
-2. **Realistic data simulation** - Market hours, volatility, trends
-3. **Performance testing** - High-frequency updates available
-4. **Event simulation** - Test market scenarios
+1. **"Failed to connect to Schwab API"**
+   - Check your API credentials in `.env`
+   - Ensure your Schwab developer account is active
+   - Try using mock mode instead
 
-## 💡 Features
+2. **"No data appearing"**
+   - Check the browser console for errors
+   - Verify WebSocket connection is established
+   - Ensure symbols are properly added to watchlist
 
-### 📈 **Real-Time Equity Streaming**
-- **WebSocket Architecture**: Millisecond-latency real-time streaming
-- **Field-Based Subscriptions**: Last, Bid, Ask, Volume, High, Low, Net Change
-- **Automatic Token Refresh**: Background token management
-- **Connection Monitoring**: Real-time status indicators
+3. **"Authentication required" errors**
+   - Clear browser cookies and try logging in again
+   - Check that session is properly maintained
 
-### 📊 **Options Flow Analysis**  
-- **Delta × Volume Analysis**: Real-time options flow sentiment
-- **Interactive Charts**: Call/Put delta volume, net delta trends
-- **Technical Indicators**: Momentum, volatility, trend strength
-- **Market Status**: Pre-market, regular hours, after-hours detection
+### Logs
 
-### 🧪 **Testing & Development**
-- **Mock Data Mode**: Works without API credentials
-- **Separate Data Storage**: No mixing of real and mock data
-- **Market Event Simulation**: Test various market conditions
-- **Performance Validation**: Verify app handles high-frequency updates
-- **UI Test Framework**: Comprehensive integration testing
+The application provides detailed logging:
+- Authentication events
+- Market data streaming status
+- Database operations
+- WebSocket connections
+- Feature initialization
 
-## 📊 Testing Examples
+## Security Notes
 
-### **Basic Mock Test**
-```python
-from mock_data import MockSchwabClient
-import time
+- API credentials are stored in environment variables only
+- Sessions use secure cookies with configurable timeout
+- All API endpoints require authentication via `@require_auth` decorator
+- Real and mock data are clearly separated
 
-# Create mock client
-client = MockSchwabClient()
-streamer = client.stream
+## Future Expansion
 
-# Start streaming
-def handle_message(msg):
-    print(f"Received: {msg}")
+The modular architecture makes it easy to add new features:
 
-streamer.start(handle_message)
-streamer.add_symbol('AAPL')
-time.sleep(10)
-streamer.stop()
-```
+- **Options Flow**: Real-time options data and analysis
+- **Futures Data**: Commodity and index futures streaming
+- **News Integration**: Market news and sentiment analysis
+- **Technical Analysis**: Chart patterns and indicators
+- **Portfolio Tracking**: Position management and P&L
 
-### **Market Event Testing**
-```python
-# Simulate bullish market
-streamer.simulate_market_event('bullish_surge')
+Each new feature can reuse the existing `StreamManager` and `FeatureManager` infrastructure.
 
-# Simulate high volatility
-streamer.simulate_market_event('high_volatility')
+## License
 
-# Simulate market open
-streamer.simulate_market_event('market_open')
-```
+This project is for educational and personal use. Please ensure compliance with Charles Schwab's API terms of service when using real market data.
 
-### **Performance Testing**
-```bash
-# Test data generation speed
-python -c "
-from mock_data import MockMarketDataGenerator
-import time
-gen = MockMarketDataGenerator()
-start = time.time()
-for i in range(1000):
-    gen.generate_quote('AAPL')
-print(f'Generated 1000 quotes in {time.time()-start:.2f}s')
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes following the modular architecture principles
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+---
+
+**Note**: This application is designed for educational purposes. Always verify market data accuracy before making trading decisions.

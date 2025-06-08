@@ -237,7 +237,7 @@ jobs:
             
             # Test message handling
             message = mock_streamer._create_schwab_message(quote)
-            manager.schwab_message_handler(message)
+            manager._schwab_message_handler(message)
             
             market_data = manager.get_market_data()
             assert \"AAPL\" in market_data[\"market_data\"], \"Market data not processed\"
