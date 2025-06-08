@@ -156,7 +156,7 @@ jobs:
     - name: Test database functionality
       run: |
         python -c "
-        from market_data import MarketDataManager
+        from features.market_data import MarketDataManager
         import tempfile
         
         print('Testing database functionality...')
@@ -189,7 +189,7 @@ jobs:
     - name: Test error handling
       run: |
         python -c "
-        from market_data import MarketDataManager
+        from features.market_data import MarketDataManager
         import tempfile
         import json
         
