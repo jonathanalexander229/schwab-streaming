@@ -201,14 +201,14 @@ jobs:
             
             # Test invalid JSON handling
             try:
-                manager.schwab_message_handler('invalid json')
+                manager._schwab_message_handler('invalid json')
                 print('  ✓ Invalid JSON handled gracefully')
             except Exception as e:
                 print(f'  ⚠ Invalid JSON caused error: {e}')
             
             # Test empty message handling
             try:
-                manager.schwab_message_handler('{}')
+                manager._schwab_message_handler('{}')
                 print('  ✓ Empty message handled gracefully')
             except Exception as e:
                 print(f'  ⚠ Empty message caused error: {e}')
