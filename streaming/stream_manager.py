@@ -1,8 +1,9 @@
-# streaming/stream_manager.py - Generic streaming infrastructure
+# streaming/stream_manager.py - Generic streaming infrastructure with asset-specific processing
 import logging
 import threading
 from typing import Optional, Callable, Dict, Any
 from .subscription_manager import SubscriptionManager
+from .equity_stream import EquityStreamProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,13 @@ class StreamManager:
             return True
             
         try:
+            # Start the actual streamer with our message processor
+            if hasattr(self.streamer, 'start'):
+                self.streamer.start(self._process_raw_message)
+                logger.info("Streamer started with message handler")
+            else:
+                logger.warning("Streamer does not have start() method")
+                
             self.is_streaming = True
             logger.info("Starting stream manager")
             return True
@@ -52,6 +60,11 @@ class StreamManager:
             return
             
         try:
+            # Stop the actual streamer
+            if hasattr(self.streamer, 'stop'):
+                self.streamer.stop()
+                logger.info("Streamer stopped")
+                
             self.is_streaming = False
             if self.stream_thread and self.stream_thread.is_alive():
                 self.stream_thread.join(timeout=5)
@@ -89,3 +102,21 @@ class StreamManager:
     def is_active(self) -> bool:
         """Check if streaming is active"""
         return self.is_streaming
+    
+    def _process_raw_message(self, raw_message: str):
+        """Process raw message from streamer and convert to dict"""
+        try:
+            import json
+            if isinstance(raw_message, str):
+                message_data = json.loads(raw_message)
+            else:
+                message_data = raw_message
+                
+            # Pass to message handler
+            if self.message_handler:
+                self.message_handler(message_data)
+            else:
+                logger.warning("No message handler configured for raw message")
+                
+        except Exception as e:
+            logger.error(f"Error processing raw message: {e}")

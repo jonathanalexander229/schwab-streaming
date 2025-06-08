@@ -92,19 +92,18 @@ def get_market_data():
 @market_data_bp.route('/api/auth-status')
 def auth_status():
     """Get authentication and system status"""
-    import os
     is_authenticated = session.get('authenticated', False)
+    mock_mode = session.get('mock_mode', False)
     
     if not is_authenticated:
         return jsonify({'authenticated': False})
     
-    manager = _get_manager()
-    if not manager:
-        return jsonify({'authenticated': True, 'error': 'Market data manager not initialized'})
-    
-    status = manager.get_auth_status()
-    status['authenticated'] = is_authenticated
-    return jsonify(status)
+    # Return session-based status directly to avoid conflicts
+    return jsonify({
+        'authenticated': is_authenticated,
+        'mock_mode': mock_mode,
+        'data_source': 'MOCK' if mock_mode else 'SCHWAB_API'
+    })
 
 # Mock testing routes
 @market_data_bp.route('/api/test/market-event', methods=['POST'])

@@ -17,7 +17,7 @@ class FeatureManager:
     def initialize_market_data(self, schwab_client, schwab_streamer, is_mock_mode: bool = False):
         """Initialize market data feature"""
         try:
-            from market_data import get_market_data_manager
+            from features.market_data import get_market_data_manager
             
             self.is_mock_mode = is_mock_mode
             manager = get_market_data_manager(self.data_dir)

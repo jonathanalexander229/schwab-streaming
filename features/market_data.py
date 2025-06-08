@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Set, Optional, Callable
 import threading
-from streaming import StreamManager
+from streaming.equity_stream_manager import EquityStreamManager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -19,9 +19,9 @@ class MarketDataManager:
         self.watchlist: Set[str] = set()
         self.is_mock_mode = False
         
-        # Initialize streaming manager
-        self.stream_manager = StreamManager()
-        self.stream_manager.set_message_handler(self._process_market_data_message)
+        # Initialize equity streaming manager
+        self.equity_stream_manager = EquityStreamManager()
+        self.equity_stream_manager.set_equity_data_handler(self._process_equity_data_callback)
         
         # Watchlist file path - should be in the same directory as app.py
         self.watchlist_file = os.path.join(os.path.dirname(data_dir), 'watchlist.json')
@@ -38,8 +38,8 @@ class MarketDataManager:
         self.socketio = socketio
         self.is_mock_mode = is_mock_mode
         
-        # Configure stream manager
-        self.stream_manager.set_dependencies(schwab_streamer, socketio)
+        # Configure equity stream manager
+        self.equity_stream_manager.set_dependencies(schwab_streamer, socketio, is_mock_mode)
     
     def get_db_connection(self, is_mock_mode: Optional[bool] = None) -> sqlite3.Connection:
         """Get database connection with mock/real separation"""
@@ -143,11 +143,8 @@ class MarketDataManager:
         self.watchlist.add(symbol)
         self.save_watchlist()
         
-        # Subscribe via stream manager
-        success = self.stream_manager.add_subscription(symbol)
-        if success:
-            self._subscribe_to_symbol(symbol)
-        
+        # Subscribe via equity stream manager (handles all subscription logic)
+        success = self.equity_stream_manager.add_equity_subscription(symbol)
         return success
     
     def remove_symbol(self, symbol: str) -> bool:
@@ -164,7 +161,7 @@ class MarketDataManager:
             del self.market_data[symbol]
         
         # Remove from stream manager
-        self.stream_manager.remove_subscription(symbol)
+        self.equity_stream_manager.remove_equity_subscription(symbol)
         
         return True
     
@@ -181,102 +178,30 @@ class MarketDataManager:
             'timestamp': int(time.time() * 1000)
         }
     
-    def _subscribe_to_symbol(self, symbol: str):
-        """Subscribe to a specific symbol via Schwab streamer"""
-        if not self.stream_manager.streamer:
+    def _process_equity_data_callback(self, equity_data: Dict[str, Any]):
+        """Callback for processed equity data from EquityStreamManager"""
+        symbol = equity_data.get('symbol')
+        if not symbol:
             return
             
-        try:
-            if hasattr(self.stream_manager.streamer, 'add_symbol'):
-                # Mock streamer method
-                self.stream_manager.streamer.add_symbol(symbol)
-                logger.info(f"Added {symbol} to mock stream")
-            else:
-                # Real Schwab streamer method
-                self.stream_manager.streamer.send(
-                    self.stream_manager.streamer.level_one_equities(symbol, "0,1,2,3,4,5,8,10,11,12,17,18,42")
-                )
-                logger.info(f"Subscribed to Schwab data for {symbol}")
-        except Exception as e:
-            logger.error(f"Error subscribing to {symbol}: {e}")
-    
-    def _process_market_data_message(self, message: Dict[str, Any]):
-        """Process market data message from stream manager"""
-        try:
-            # Skip heartbeat messages
-            if 'notify' in message and any('heartbeat' in item for item in message['notify']):
-                return
-            
-            # Log the entire raw message for debugging
-            logger.info("="*80)
-            logger.info("COMPLETE SCHWAB MESSAGE:")
-            logger.info(json.dumps(message, indent=2))
-            logger.info("="*80)
-            
-            # Handle service messages
-            if 'notify' in message:
-                for item in message['notify']:
-                    if item.get('service') == 'ADMIN':
-                        logger.warning(f"Admin message: {item.get('content', {}).get('msg', 'Unknown')}")
-                        return
-            
-            # Process actual market data
-            if "data" not in message:
-                return
-
-            for item in message["data"]:
-                service = item.get("service")
-                if not service or "content" not in item:
-                    continue
-                
-                timestamp = int(time.time() * 1000)
-                
-                # Process each content item
-                for content in item["content"]:
-                    symbol = content.get("key")
-                    if not symbol:
-                        continue
-
-                    if service == "LEVELONE_EQUITIES":
-                        self._process_equity_data(symbol, content, timestamp)
-            
-        except Exception as e:
-            logger.error(f"Error processing market data message: {e}")
-    
-    def _process_equity_data(self, symbol: str, content: Dict[str, Any], timestamp: int):
-        """Process level one equity data"""
-        market_data_item = {
-            'symbol': symbol,
-            'last_price': content.get("3"),      # Field 3: Last Price
-            'bid_price': content.get("1"),       # Field 1: Bid Price
-            'ask_price': content.get("2"),       # Field 2: Ask Price
-            'volume': content.get("8"),          # Field 8: Total Volume
-            'high_price': content.get("10"),     # Field 10: High Price
-            'low_price': content.get("11"),      # Field 11: Low Price
-            'net_change': content.get("18"),     # Field 18: Net Change
-            'net_change_percent': content.get("42"), # Field 42: Net Percent Change
-            'timestamp': timestamp,
-            'data_source': 'MOCK' if self.is_mock_mode else 'SCHWAB_API'
-        }
-        
         # Store globally
-        self.market_data[symbol] = market_data_item
+        self.market_data[symbol] = equity_data
         
         # Save to database
-        self._save_to_database(market_data_item)
+        self._save_to_database(equity_data)
         
-        # Emit to clients with source information
+        # Emit to clients
         if self.socketio:
             self.socketio.emit('market_data', {
                 'symbol': symbol, 
-                'data': market_data_item,
+                'data': equity_data,
                 'is_mock': self.is_mock_mode
             })
         
         # Enhanced logging
         source_label = "MOCK" if self.is_mock_mode else "REAL"
-        logger.info(f"{source_label} data for {symbol}: Last ${market_data_item.get('last_price', 'N/A')}")
-    
+        logger.info(f"{source_label} data for {symbol}: Last ${equity_data.get('last_price', 'N/A')}")
+
     def _save_to_database(self, market_data_item: Dict[str, Any]):
         """Save market data to database"""
         try:
@@ -301,30 +226,25 @@ class MarketDataManager:
             logger.error(f"Database error: {e}")
     
     def start_streaming(self):
-        """Start market data streaming via stream manager"""
-        if not self.stream_manager.start_streaming():
-            logger.error("Failed to start stream manager")
+        """Start market data streaming via equity stream manager"""
+        logger.info("Starting market data streaming")
+        
+        if not self.equity_stream_manager.start_streaming():
+            logger.error("Failed to start equity stream manager")
             return False
         
         try:
-            # Register custom message handler for Schwab API
-            if hasattr(self.stream_manager.streamer, 'start'):
-                self.stream_manager.streamer.start(self._schwab_message_handler)
-                logger.info("Market data streamer started")
-            
             # Subscribe to all watchlist symbols
             if self.watchlist:
                 for symbol in self.watchlist:
-                    self.stream_manager.add_subscription(symbol)
-                    self._subscribe_to_symbol(symbol)
+                    self.equity_stream_manager.add_equity_subscription(symbol)
                     time.sleep(0.1)  # Rate limit protection
                     
                 logger.info(f"Subscribed to {len(self.watchlist)} symbols: {', '.join(list(self.watchlist))}")
             else:
                 # Subscribe to default symbol if no watchlist
                 default_symbol = "SPY"
-                self.stream_manager.add_subscription(default_symbol)
-                self._subscribe_to_symbol(default_symbol)
+                self.equity_stream_manager.add_equity_subscription(default_symbol)
                 self.watchlist.add(default_symbol)
                 self.save_watchlist()
                 logger.info(f"Subscribed to default symbol: {default_symbol}")
@@ -335,17 +255,9 @@ class MarketDataManager:
             logger.error(f"Error starting streaming: {e}")
             return False
     
-    def _schwab_message_handler(self, message: str):
-        """Handler for raw Schwab messages - converts to dict and passes to stream manager"""
-        try:
-            data = json.loads(message)
-            self.stream_manager.process_message(data)
-        except Exception as e:
-            logger.error(f"Error parsing Schwab message: {e}")
-    
     def stop_streaming(self):
         """Stop market data streaming"""
-        self.stream_manager.stop_streaming()
+        self.equity_stream_manager.stop_streaming()
         logger.info("Market data streaming stopped")
     
     def get_auth_status(self) -> Dict[str, Any]:
@@ -354,11 +266,11 @@ class MarketDataManager:
             'authenticated': True,  # Will be handled by main app
             'mock_mode': self.is_mock_mode,
             'using_real_api': self.schwab_client is not None and not self.is_mock_mode,
-            'has_streamer': self.stream_manager.streamer is not None,
+            'has_streamer': self.equity_stream_manager.streamer is not None,
             'data_source': 'MOCK' if self.is_mock_mode else 'SCHWAB_API',
             'database_prefix': 'MOCK_' if self.is_mock_mode else '',
             'watchlist_count': len(self.watchlist),
-            'streaming_active': self.stream_manager.is_active()
+            'streaming_active': self.equity_stream_manager.is_active()
         }
 
 
