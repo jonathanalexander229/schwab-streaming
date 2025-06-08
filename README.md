@@ -12,6 +12,8 @@ A modular Flask-based web application for streaming market data from Charles Sch
 - 🌐 **WebSocket Support**: Real-time updates via Socket.IO
 - 📱 **Responsive UI**: Clean, modern interface that works on all devices
 - 🏗️ **Modular Architecture**: Clean separation of concerns for easy feature expansion
+- 🔄 **Inheritance-Based Streaming**: Generic StreamManager with asset-specific extensions
+- ✅ **Comprehensive Testing**: GitHub Actions workflows for CI/CD validation
 
 ## Quick Start
 
@@ -72,29 +74,43 @@ A modular Flask-based web application for streaming market data from Charles Sch
 
 The application follows a clean, modular architecture designed for maintainability and easy feature expansion:
 
+### Streaming Architecture
+
+The streaming system uses an **inheritance-based pattern** that separates generic streaming concerns from asset-specific logic:
+
+- **StreamManager (Base Class)**: Handles common streaming operations (start/stop, subscriptions, raw message processing)
+- **EquityStreamManager (Inherits StreamManager)**: Adds equity-specific validation, field mapping, and business logic
+- **Future Asset Managers**: Can easily inherit from StreamManager (e.g., OptionsStreamManager, ForexStreamManager)
+
+This design ensures code reusability while maintaining clean separation between generic infrastructure and business-specific logic.
+
 #### Core Components
 
-- **FeatureManager**: Centralized feature initialization and management
-- **StreamManager**: Generic streaming infrastructure for any data type
+- **FeatureManager**: Centralized feature initialization and lifecycle management
+- **StreamManager**: Generic streaming base class for any asset type (equities, options, etc.)
+- **EquityStreamManager**: Equity-specific streaming that inherits from StreamManager
+- **EquityStreamProcessor**: Handles equity field mapping and validation
 - **SubscriptionManager**: Generic symbol subscription handling
-- **MarketDataManager**: Market data specific logic and database operations
+- **MarketDataManager**: Market data business logic and database operations
 
 #### Package Structure
 
 ```
 schwab_streaming/
-├── app.py                    # Simplified main Flask application (194 lines)
+├── app.py                    # Main Flask application with feature orchestration
 ├── auth.py                   # Authentication with @require_auth decorator
-├── core/                     # Core utilities and feature management
+├── features/                 # Business feature modules
 │   ├── __init__.py
-│   └── feature_manager.py    # Centralized feature initialization
+│   ├── feature_manager.py    # Centralized feature initialization and management
+│   ├── market_data.py        # Market data business logic and database operations
+│   └── market_data_routes.py # Market data API routes and WebSocket handlers
 ├── streaming/                # Generic streaming infrastructure
 │   ├── __init__.py
-│   ├── stream_manager.py     # Generic streaming manager
-│   └── subscription_manager.py # Generic subscription handling
-├── market_data.py            # Market data manager (uses StreamManager)
-├── market_data_routes.py     # Market data API routes and WebSocket handlers
-├── mock_data.py              # Mock data generation
+│   ├── stream_manager.py     # Generic streaming manager (base class)
+│   ├── equity_stream.py      # Equity-specific processing and field mapping
+│   ├── equity_stream_manager.py # Equity streaming manager (inherits StreamManager)
+│   └── subscription_manager.py # Generic symbol subscription handling
+├── mock_data.py              # Mock data generation and testing framework
 ├── templates/                # HTML templates
 ├── static/                   # CSS/JS assets
 ├── data/                     # SQLite databases
@@ -111,32 +127,48 @@ schwab_streaming/
 
 ### Adding New Streaming Features
 
-With the modular architecture, adding new streaming features is straightforward:
+With the modular architecture, adding new streaming features follows a clear inheritance pattern:
 
 ```python
 # Example: Adding options streaming
-from core import FeatureManager
-from streaming import StreamManager
+from streaming.stream_manager import StreamManager
+from streaming.equity_stream import EquityStreamProcessor  # Use as template
 
-# 1. Create options-specific manager
+# 1. Create options-specific processor
+class OptionsStreamProcessor:
+    def __init__(self):
+        self.is_mock_mode = False
+    
+    def validate_symbol(self, symbol: str) -> bool:
+        # Options-specific validation (e.g., "AAPL240315C00150000")
+        pass
+    
+    def process_message(self, message_data):
+        # Options-specific field mapping
+        pass
+
+# 2. Create options stream manager (inherits from StreamManager)
+class OptionsStreamManager(StreamManager):
+    def __init__(self):
+        super().__init__()
+        self.options_processor = OptionsStreamProcessor()
+        super().set_message_handler(self._process_options_message)
+    
+    def add_options_subscription(self, symbol: str) -> bool:
+        if not self.options_processor.validate_symbol(symbol):
+            return False
+        return self.add_subscription(symbol)
+
+# 3. Create options data manager
 class OptionsDataManager:
     def __init__(self, data_dir):
-        self.stream_manager = StreamManager()
-        # Options-specific logic here
+        self.options_stream_manager = OptionsStreamManager()
+        # Options-specific business logic here
 
-# 2. Add to FeatureManager
-def initialize_options_data(self, schwab_client, schwab_streamer):
-    # Initialize options feature
+# 4. Add to FeatureManager
+def initialize_options_data(self, schwab_client, schwab_streamer, is_mock_mode):
+    # Initialize options feature following same pattern as market data
     pass
-
-# 3. Create routes blueprint
-from auth import require_auth
-
-@options_bp.route('/api/options/watchlist')
-@require_auth
-def get_options_watchlist():
-    manager = current_app.feature_manager.get_feature('options')
-    # Handle options-specific logic
 ```
 
 ### Database Schema
