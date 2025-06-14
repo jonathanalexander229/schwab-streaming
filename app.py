@@ -187,6 +187,21 @@ def historical_charts():
         flash('Error loading historical charts page', 'error')
         return redirect(url_for('index'))
 
+@app.route('/live-charts')
+@require_auth
+def live_charts():
+    """Live charts viewer page"""
+    return render_template('live_charts.html')
+
+@app.route('/api/session-info')
+@require_auth
+def session_info():
+    """API endpoint to get session information"""
+    return jsonify({
+        'authenticated': session.get('authenticated', False),
+        'mock_mode': session.get('mock_mode', False)
+    })
+
 @app.route('/api/historical-data/<symbol>')
 @require_auth
 def get_historical_data(symbol):
