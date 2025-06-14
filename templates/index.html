@@ -52,13 +52,16 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Navigation buttons -->
+        <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+            <a href="{{ url_for('historical_charts') }}" class="nav-btn" style="padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px;">📊 Historical Charts</a>
+        </div>
+
         <div class="add-symbol-section">
             <h2>Add Stock Symbol</h2>
             <div class="input-group">
                 <input type="text" id="symbolInput" placeholder="Enter stock symbol (e.g., AAPL, MSFT, GOOGL)" maxlength="10">
                 <button class="btn btn-primary" onclick="app.addSymbol()">Add to Watchlist</button>
-                <!-- Mock mode test button -->
-                <button id="mockTestBtn" class="btn btn-secondary hidden" onclick="triggerMockEvent()">🎯 Test Market Event</button>
             </div>
         </div>
 

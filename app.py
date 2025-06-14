@@ -166,6 +166,129 @@ def index():
     
     return render_template('index.html', features=features)
 
+@app.route('/historical-charts')
+@require_auth
+def historical_charts():
+    """Historical charts viewer page"""
+    try:
+        # Get available symbols from watchlist
+        import json
+        watchlist_path = os.path.join(Config.BASE_DIR, 'watchlist.json')
+        
+        symbols = []
+        if os.path.exists(watchlist_path):
+            with open(watchlist_path, 'r') as f:
+                watchlist_data = json.load(f)
+                symbols = watchlist_data.get('symbols', [])
+        
+        return render_template('historical_charts.html', symbols=symbols)
+    except Exception as e:
+        logger.error(f"Error loading historical charts page: {e}")
+        flash('Error loading historical charts page', 'error')
+        return redirect(url_for('index'))
+
+@app.route('/api/historical-data/<symbol>')
+@require_auth
+def get_historical_data(symbol):
+    """API endpoint to serve historical OHLC data"""
+    try:
+        from historical_collection.core.ohlc_database import OHLCDatabase
+        from datetime import datetime, timedelta
+        
+        # Get query parameters
+        timeframe = request.args.get('timeframe', '1m')
+        range_param = request.args.get('range', '1m')
+        
+        # Calculate date range
+        end_date = datetime.now()
+        
+        if range_param == '1d':
+            start_date = end_date - timedelta(days=1)
+        elif range_param == '1w':
+            start_date = end_date - timedelta(weeks=1)
+        elif range_param == '1m':
+            start_date = end_date - timedelta(days=30)
+        elif range_param == '3m':
+            start_date = end_date - timedelta(days=90)
+        elif range_param == '6m':
+            start_date = end_date - timedelta(days=180)
+        elif range_param == '1y':
+            start_date = end_date - timedelta(days=365)
+        else:  # 'all'
+            start_date = end_date - timedelta(days=365 * 10)  # 10 years max
+        
+        # Initialize database
+        db_path = os.path.join(Config.DATA_DIR, 'historical_data.db')
+        database = OHLCDatabase(db_path)
+        
+        # Get data from database
+        start_timestamp = int(start_date.timestamp())
+        end_timestamp = int(end_date.timestamp())
+        
+        data = database.get_ohlc_data(symbol, start_timestamp, end_timestamp, timeframe)
+        
+        # Apply data limit for performance (max 10,000 points)
+        max_points = 10000
+        if len(data) > max_points:
+            # Sample data to reduce points
+            step = len(data) // max_points
+            data = data[::step]
+        
+        return jsonify({
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'range': range_param,
+            'count': len(data),
+            'data': data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching historical data for {symbol}: {e}")
+        return jsonify({
+            'error': f'Error fetching data: {str(e)}'
+        }), 500
+
+@app.route('/api/test-data')
+@require_auth
+def test_data():
+    """Test endpoint to verify API is working"""
+    try:
+        from historical_collection.core.ohlc_database import OHLCDatabase
+        
+        db_path = os.path.join(Config.DATA_DIR, 'historical_data.db')
+        database = OHLCDatabase(db_path)
+        
+        # Get stats for all symbols
+        import json
+        watchlist_path = os.path.join(Config.BASE_DIR, 'watchlist.json')
+        symbols = []
+        if os.path.exists(watchlist_path):
+            with open(watchlist_path, 'r') as f:
+                watchlist_data = json.load(f)
+                symbols = watchlist_data.get('symbols', [])
+        
+        stats = {}
+        for symbol in symbols:
+            stats[symbol] = database.get_symbol_stats(symbol)
+        
+        return jsonify({
+            'database_path': db_path,
+            'database_exists': os.path.exists(db_path),
+            'symbols': symbols,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Test error: {str(e)}'
+        }), 500
+
+@app.route('/chart-test')
+@require_auth
+def chart_test():
+    """Simple chart test page"""
+    return render_template('chart_test.html')
+
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")
