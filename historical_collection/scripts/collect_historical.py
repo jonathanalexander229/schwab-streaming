@@ -116,6 +116,27 @@ Examples:
     )
     
     parser.add_argument(
+        '--frequency-type',
+        type=str,
+        choices=['minute', 'daily'],
+        default='minute',
+        help='Frequency type (default: minute)'
+    )
+    
+    parser.add_argument(
+        '--frequency',
+        type=int,
+        default=1,
+        help='Frequency value - 1,5,15,30 for minute; 1 for daily (default: 1)'
+    )
+    
+    parser.add_argument(
+        '--all-frequencies',
+        action='store_true',
+        help='Collect all supported frequencies: 1m, 5m, daily'
+    )
+    
+    parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose logging'
@@ -177,14 +198,54 @@ Examples:
         validate_data = not args.no_validation
         
         # Execute collection
-        if args.symbol:
-            # Collect single symbol
-            logger.info(f"🎯 Collecting data for {args.symbol}")
+        if args.all_frequencies:
+            # Collect all supported frequencies
+            frequencies_to_collect = [
+                ('minute', 1),   # 1-minute
+                ('minute', 5),   # 5-minute  
+                ('daily', 1)     # Daily
+            ]
+            
+            if args.symbol:
+                # Single symbol, all frequencies
+                logger.info(f"🎯 Collecting all frequencies for {args.symbol}")
+                for freq_type, freq_val in frequencies_to_collect:
+                    logger.info(f"📊 Collecting {freq_val}{freq_type[0]} data...")
+                    result = manager.collect_historical_data(
+                        symbol=args.symbol,
+                        years=args.years,
+                        market_hours_only=market_hours_only,
+                        validate_data=validate_data,
+                        frequency_type=freq_type,
+                        frequency=freq_val
+                    )
+                    print(f"✅ {freq_val}{freq_type[0]}: {result.get('inserted_candles', 0):,} candles")
+                return 0
+            else:
+                # All symbols, all frequencies
+                logger.info("🎯 Collecting all frequencies for all watchlist symbols")
+                for freq_type, freq_val in frequencies_to_collect:
+                    logger.info(f"📊 Collecting {freq_val}{freq_type[0]} data for all symbols...")
+                    results = manager.collect_all_watchlist_data(
+                        years=args.years,
+                        market_hours_only=market_hours_only,
+                        validate_data=validate_data,
+                        frequency_type=freq_type,
+                        frequency=freq_val
+                    )
+                    print(f"✅ {freq_val}{freq_type[0]}: {results['total_candles_collected']:,} total candles")
+                return 0
+        
+        elif args.symbol:
+            # Collect single symbol, single frequency
+            logger.info(f"🎯 Collecting {args.frequency}{args.frequency_type[0]} data for {args.symbol}")
             result = manager.collect_historical_data(
                 symbol=args.symbol,
                 years=args.years,
                 market_hours_only=market_hours_only,
-                validate_data=validate_data
+                validate_data=validate_data,
+                frequency_type=args.frequency_type,
+                frequency=args.frequency
             )
             
             # Display results
@@ -209,12 +270,14 @@ Examples:
                 return 1
         
         else:
-            # Collect all watchlist symbols
-            logger.info("🎯 Collecting data for all watchlist symbols")
+            # Collect all watchlist symbols, single frequency
+            logger.info(f"🎯 Collecting {args.frequency}{args.frequency_type[0]} data for all watchlist symbols")
             results = manager.collect_all_watchlist_data(
                 years=args.years,
                 market_hours_only=market_hours_only,
-                validate_data=validate_data
+                validate_data=validate_data,
+                frequency_type=args.frequency_type,
+                frequency=args.frequency
             )
             
             # Display summary

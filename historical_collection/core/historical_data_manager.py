@@ -59,7 +59,9 @@ class HistoricalDataManager:
     
     def collect_historical_data(self, symbol: str, years: int = 5, 
                               market_hours_only: bool = True,
-                              validate_data: bool = True) -> Dict[str, Any]:
+                              validate_data: bool = True,
+                              frequency_type: str = 'minute',
+                              frequency: int = 1) -> Dict[str, Any]:
         """
         Collect historical data for a single symbol
         
@@ -104,9 +106,9 @@ class HistoricalDataManager:
         )
         
         try:
-            # Collect data from API
-            raw_candles = self.collector.get_historical_data_chunked(
-                symbol, start_date, end_date
+            # Collect data from API using frequency-aware method
+            raw_candles = self.collector.get_historical_data_by_frequency(
+                symbol, frequency_type, frequency
             )
             
             if not raw_candles:
@@ -129,8 +131,8 @@ class HistoricalDataManager:
                 # Remove duplicates
                 processed_candles = self.validator.remove_duplicates(processed_candles)
                 
-                # Filter to market hours if requested
-                if market_hours_only:
+                # Filter to market hours if requested (skip for daily data)
+                if market_hours_only and frequency_type != 'daily':
                     processed_candles = self.validator.filter_market_hours_only(processed_candles)
                 
                 # Generate quality report
@@ -142,8 +144,9 @@ class HistoricalDataManager:
                     for issue in quality_report['issues']:
                         logger.warning(f"⚠️  {symbol}: {issue}")
             
-            # Store in database
-            inserted_count = self.database.insert_ohlc_data(symbol, processed_candles)
+            # Store in database with frequency info
+            timeframe = f"{frequency}{frequency_type[0]}"  # e.g., "1m", "5m", "1d"
+            inserted_count = self.database.insert_ohlc_data(symbol, processed_candles, timeframe)
             
             # Update progress as completed
             self.database.update_collection_progress(
@@ -178,7 +181,9 @@ class HistoricalDataManager:
     
     def collect_all_watchlist_data(self, years: int = 5, 
                                  market_hours_only: bool = True,
-                                 validate_data: bool = True) -> Dict[str, Any]:
+                                 validate_data: bool = True,
+                                 frequency_type: str = 'minute',
+                                 frequency: int = 1) -> Dict[str, Any]:
         """
         Collect historical data for all symbols in watchlist
         
@@ -207,7 +212,7 @@ class HistoricalDataManager:
             logger.info(f"📊 Processing symbol {i}/{len(self.symbols)}: {symbol}")
             
             result = self.collect_historical_data(
-                symbol, years, market_hours_only, validate_data
+                symbol, years, market_hours_only, validate_data, frequency_type, frequency
             )
             
             results.append(result)

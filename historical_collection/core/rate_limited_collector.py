@@ -130,6 +130,96 @@ class RateLimitedCollector:
             logger.error(f"❌ Error fetching historical data for {symbol}: {e}")
             return None
     
+    def get_historical_data_by_frequency(self, symbol: str, frequency_type: str, 
+                                       frequency: int = 1) -> List[Dict[str, Any]]:
+        """
+        Get historical data using optimal strategy for each frequency
+        
+        Args:
+            symbol: Stock symbol
+            frequency_type: 'minute' or 'daily'
+            frequency: Frequency value (1, 5, 15, 30 for minute; 1 for daily)
+        
+        Returns:
+            List of OHLC candles using best available strategy
+        """
+        logger.info(f"📊 Collecting {frequency}{frequency_type[0]} data for {symbol}")
+        
+        if frequency_type == 'daily':
+            # Daily data: Use period parameters for maximum history
+            return self._get_daily_data(symbol)
+        elif frequency_type == 'minute':
+            if frequency == 1:
+                # 1-minute: Use date range for ~46 days
+                return self._get_minute_data(symbol, frequency)
+            elif frequency in [5, 15, 30]:
+                # 5-30 minute: Use date range for ~259 days  
+                return self._get_intraday_data(symbol, frequency)
+        
+        logger.warning(f"⚠️  Unsupported frequency: {frequency}{frequency_type}")
+        return []
+    
+    def _get_daily_data(self, symbol: str) -> List[Dict[str, Any]]:
+        """Get daily data using period parameters (2+ years)"""
+        try:
+            data = self.get_historical_data(
+                symbol=symbol,
+                period_type="year",
+                period=2,  # 2 years
+                frequency_type="daily",
+                frequency=1
+            )
+            if data:
+                logger.info(f"✅ Daily data: {len(data)} candles (~2 years)")
+            return data or []
+        except Exception as e:
+            logger.error(f"❌ Error getting daily data: {e}")
+            return []
+    
+    def _get_minute_data(self, symbol: str, frequency: int) -> List[Dict[str, Any]]:
+        """Get 1-minute data using date range (~46 days)"""
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=60)  # Try 60 days, API will limit to ~46
+            
+            data = self.get_historical_data(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                frequency_type="minute",
+                frequency=frequency
+            )
+            if data:
+                actual_days = (datetime.fromtimestamp(data[-1]['datetime']) - 
+                             datetime.fromtimestamp(data[0]['datetime'])).days
+                logger.info(f"✅ {frequency}m data: {len(data)} candles ({actual_days} days)")
+            return data or []
+        except Exception as e:
+            logger.error(f"❌ Error getting {frequency}m data: {e}")
+            return []
+    
+    def _get_intraday_data(self, symbol: str, frequency: int) -> List[Dict[str, Any]]:
+        """Get 5-30 minute data using date range (~259 days)"""
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=300)  # Try 300 days, API will limit to ~259
+            
+            data = self.get_historical_data(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                frequency_type="minute",
+                frequency=frequency
+            )
+            if data:
+                actual_days = (datetime.fromtimestamp(data[-1]['datetime']) - 
+                             datetime.fromtimestamp(data[0]['datetime'])).days
+                logger.info(f"✅ {frequency}m data: {len(data)} candles ({actual_days} days)")
+            return data or []
+        except Exception as e:
+            logger.error(f"❌ Error getting {frequency}m data: {e}")
+            return []
+
     def get_historical_data_chunked(self, symbol: str, start_date: datetime, 
                                   end_date: datetime, chunk_days: int = 90) -> List[Dict[str, Any]]:
         """
