@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Charts - Schwab Streaming</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
+        
+        /* Mock mode banner */
+        .mock-mode-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            animation: slideDown 0.5s ease-out;
+        }
+        .mock-mode-banner.hidden { display: none; }
+        .mock-banner-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 15px;
+        }
+        .mock-icon { 
+            font-size: 1.5em; 
+            animation: pulse 2s infinite;
+        }
+        .mock-text { 
+            font-weight: bold; 
+            font-size: 1.1em; 
+            letter-spacing: 1px;
+        }
+        .mock-description { 
+            font-size: 0.9em; 
+            opacity: 0.9; 
+        }
+        .mock-banner-close { 
+            background: none; 
+            border: none; 
+            color: white; 
+            font-size: 1.5em; 
+            cursor: pointer; 
+            padding: 0;
+            margin-left: auto;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        .mock-banner-close:hover { opacity: 1; }
+        
+        /* Animations */
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Body padding adjustment for banner */
+        body.mock-banner-visible { padding-top: 60px; }
+        
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
+        
+        .controls { margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-weight: bold; font-size: 0.9em; color: #333; }
+        select, button { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background: #007bff; color: white; cursor: pointer; border: none; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        
+        .chart-wrapper { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .chart-header { background: #f8f9fa; padding: 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .chart-title { font-size: 1.2em; font-weight: bold; margin: 0; }
+        .chart-info { font-size: 0.9em; color: #666; display: flex; gap: 15px; align-items: center; }
+        .status-indicator { display: flex; align-items: center; gap: 5px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-dot.connected { background: #28a745; }
+        .status-dot.disconnected { background: #dc3545; }
+        .mock-badge { background: #ffc107; color: #212529; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; }
+        
+        #chartContainer { height: 400px; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .error { text-align: center; padding: 40px; color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
+        .no-data { text-align: center; padding: 40px; color: #666; }
+        
+        .price-display { display: flex; gap: 15px; align-items: center; }
+        .current-price { font-size: 1.1em; font-weight: bold; }
+        .price-change { padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .price-up { background: #d4edda; color: #155724; }
+        .price-down { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <!-- MOCK MODE BANNER -->
+    <div id="mockModeBanner" class="mock-mode-banner hidden">
+        <div class="mock-banner-content">
+            <span class="mock-icon">🎭</span>
+            <span class="mock-text">MOCK DATA MODE</span>
+            <span class="mock-description">Simulated market data for testing and development</span>
+            <button class="mock-banner-close" onclick="hideMockBanner()">×</button>
+        </div>
+    </div>
+
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
+        <a href="{{ url_for('historical_charts') }}" class="nav-btn">📊 Historical Charts</a>
+        <a href="{{ url_for('live_charts') }}" class="nav-btn active">📈 Live Charts</a>
+    </div>
+    
+    <h1>📈 Live Market Data Charts</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="symbolSelect">Symbol:</label>
+            <select id="symbolSelect">
+                <option value="">Select Symbol...</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="intervalSelect">Update Interval:</label>
+            <select id="intervalSelect">
+                <option value="1000">1 Second</option>
+                <option value="5000" selected>5 Seconds</option>
+                <option value="10000">10 Seconds</option>
+                <option value="30000">30 Seconds</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button id="startChart" disabled onclick="startLiveChart()">Start Live Chart</button>
+        </div>
+        
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button id="stopChart" disabled onclick="stopLiveChart()">Stop Chart</button>
+        </div>
+    </div>
+    
+    <div class="chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title" id="chartTitle">Select a symbol to start live charting</h3>
+            <div class="chart-info">
+                <div class="status-indicator">
+                    <div class="status-dot" id="connectionStatus"></div>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+                <div id="mockIndicator" class="mock-badge" style="display: none;">MOCK DATA</div>
+                <div class="price-display" id="priceDisplay" style="display: none;">
+                    <span class="current-price" id="currentPrice">$0.00</span>
+                    <span class="price-change" id="priceChange">+$0.00 (0.00%)</span>
+                </div>
+            </div>
+        </div>
+        <div id="chartContainer">
+            <div class="no-data">Select a symbol and click "Start Live Chart" to begin real-time charting</div>
+        </div>
+    </div>
+
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <script>
+        class LiveChartApp {
+            constructor() {
+                this.socket = io();
+                this.chart = null;
+                this.lineSeries = null;
+                this.isCharting = false;
+                this.currentSymbol = null;
+                this.priceData = [];
+                this.isMockMode = false;
+                this.maxDataPoints = 100; // Keep last 100 points
+                
+                this.initializeSocketHandlers();
+                this.loadWatchlistSymbols();
+                this.initializeUI();
+            }
+            
+            initializeSocketHandlers() {
+                this.socket.on('connect', () => {
+                    console.log('Connected to live chart server');
+                    this.updateConnectionStatus(true);
+                });
+                
+                this.socket.on('disconnect', () => {
+                    console.log('Disconnected from live chart server');
+                    this.updateConnectionStatus(false);
+                });
+                
+                this.socket.on('market_data', (data) => {
+                    if (this.isCharting && data.symbol === this.currentSymbol) {
+                        this.updateChart(data);
+                    }
+                });
+                
+                // Check for mock mode immediately and on connect
+                this.checkMockMode();
+                this.socket.on('connect', () => {
+                    this.checkMockMode();
+                });
+            }
+            
+            async checkMockMode() {
+                try {
+                    const response = await fetch('/api/auth-status');
+                    const data = await response.json();
+                    
+                    console.log('Auth status response:', data);
+                    
+                    this.isMockMode = data.mock_mode || false;
+                    console.log('Mock mode set to:', this.isMockMode);
+                    
+                    this.updateMockModeUI();
+                    
+                    return data;
+                } catch (error) {
+                    console.error('Failed to check mock mode:', error);
+                    return null;
+                }
+            }
+            
+            async loadWatchlistSymbols() {
+                try {
+                    const response = await fetch('/api/test-data');
+                    const data = await response.json();
+                    
+                    const symbolSelect = document.getElementById('symbolSelect');
+                    symbolSelect.innerHTML = '<option value="">Select Symbol...</option>';
+                    
+                    if (data.symbols && data.symbols.length > 0) {
+                        data.symbols.forEach(symbol => {
+                            const option = document.createElement('option');
+                            option.value = symbol;
+                            option.textContent = symbol;
+                            symbolSelect.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading watchlist symbols:', error);
+                }
+            }
+            
+            initializeUI() {
+                const symbolSelect = document.getElementById('symbolSelect');
+                const startButton = document.getElementById('startChart');
+                const stopButton = document.getElementById('stopChart');
+                
+                symbolSelect.addEventListener('change', () => {
+                    startButton.disabled = !symbolSelect.value || this.isCharting;
+                    if (this.isCharting && symbolSelect.value !== this.currentSymbol) {
+                        this.stopLiveChart();
+                    }
+                });
+            }
+            
+            initChart() {
+                const container = document.getElementById('chartContainer');
+                container.innerHTML = '';
+                
+                if (typeof LightweightCharts === 'undefined') {
+                    container.innerHTML = '<div class="error">LightweightCharts library not loaded</div>';
+                    return false;
+                }
+                
+                try {
+                    this.chart = LightweightCharts.createChart(container, {
+                        width: container.clientWidth,
+                        height: 400,
+                        layout: { 
+                            background: { color: '#ffffff' }, 
+                            textColor: '#333' 
+                        },
+                        grid: { 
+                            vertLines: { color: '#f0f0f0' }, 
+                            horzLines: { color: '#f0f0f0' } 
+                        },
+                        rightPriceScale: { borderColor: '#cccccc' },
+                        timeScale: { 
+                            borderColor: '#cccccc', 
+                            timeVisible: true, 
+                            secondsVisible: true 
+                        },
+                        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                    });
+                    
+                    this.lineSeries = this.chart.addLineSeries({
+                        color: '#007bff',
+                        lineWidth: 2,
+                    });
+                    
+                    window.addEventListener('resize', () => {
+                        if (this.chart) {
+                            this.chart.applyOptions({ width: container.clientWidth });
+                        }
+                    });
+                    
+                    return true;
+                } catch (error) {
+                    container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                    return false;
+                }
+            }
+            
+            startLiveChart() {
+                const symbol = document.getElementById('symbolSelect').value;
+                if (!symbol) return;
+                
+                this.currentSymbol = symbol;
+                this.priceData = [];
+                this.isCharting = true;
+                
+                // Initialize chart
+                if (!this.initChart()) return;
+                
+                // Update UI
+                this.updateChartTitle(symbol, 'Starting...');
+                document.getElementById('startChart').disabled = true;
+                document.getElementById('stopChart').disabled = false;
+                document.getElementById('symbolSelect').disabled = true;
+                
+                console.log(`Starting live chart for ${symbol}`);
+            }
+            
+            stopLiveChart() {
+                this.isCharting = false;
+                this.currentSymbol = null;
+                
+                // Update UI
+                document.getElementById('startChart').disabled = false;
+                document.getElementById('stopChart').disabled = true;
+                document.getElementById('symbolSelect').disabled = false;
+                document.getElementById('priceDisplay').style.display = 'none';
+                
+                this.updateChartTitle('', 'Stopped');
+                
+                const container = document.getElementById('chartContainer');
+                container.innerHTML = '<div class="no-data">Chart stopped. Select a symbol to start again.</div>';
+                
+                console.log('Stopped live chart');
+            }
+            
+            updateChart(marketData) {
+                if (!this.chart || !this.lineSeries || !marketData.data) return;
+                
+                try {
+                    // Extract price from market data
+                    const price = parseFloat(marketData.data.last_price || marketData.data.close || 0);
+                    if (price <= 0) return;
+                    
+                    const timestamp = Math.floor(Date.now() / 1000);
+                    
+                    // Add new data point
+                    this.priceData.push({
+                        time: timestamp,
+                        value: price
+                    });
+                    
+                    // Keep only last N points for performance
+                    if (this.priceData.length > this.maxDataPoints) {
+                        this.priceData = this.priceData.slice(-this.maxDataPoints);
+                    }
+                    
+                    // Update chart
+                    this.lineSeries.setData(this.priceData);
+                    
+                    // Update price display
+                    this.updatePriceDisplay(marketData.data, price);
+                    this.updateChartTitle(this.currentSymbol, `${this.priceData.length} points`);
+                    
+                } catch (error) {
+                    console.error('Error updating chart:', error);
+                }
+            }
+            
+            updatePriceDisplay(data, currentPrice) {
+                const priceDisplay = document.getElementById('priceDisplay');
+                const currentPriceEl = document.getElementById('currentPrice');
+                const priceChangeEl = document.getElementById('priceChange');
+                
+                if (!priceDisplay || !currentPriceEl || !priceChangeEl) return;
+                
+                // Update current price
+                currentPriceEl.textContent = `$${currentPrice.toFixed(2)}`;
+                
+                // Calculate change if we have previous close
+                const prevClose = parseFloat(data.previous_close || data.close || currentPrice);
+                const change = currentPrice - prevClose;
+                const changePercent = prevClose > 0 ? (change / prevClose) * 100 : 0;
+                
+                // Update change display
+                const changeText = `${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${change >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+                priceChangeEl.textContent = changeText;
+                priceChangeEl.className = `price-change ${change >= 0 ? 'price-up' : 'price-down'}`;
+                
+                priceDisplay.style.display = 'flex';
+            }
+            
+            updateChartTitle(symbol, info) {
+                const titleEl = document.getElementById('chartTitle');
+                if (symbol) {
+                    titleEl.textContent = `${symbol} Live Chart - ${info}`;
+                } else {
+                    titleEl.textContent = 'Select a symbol to start live charting';
+                }
+            }
+            
+            updateConnectionStatus(connected) {
+                const statusDot = document.getElementById('connectionStatus');
+                const statusText = document.getElementById('connectionText');
+                
+                if (connected) {
+                    statusDot.className = 'status-dot connected';
+                    statusText.textContent = 'Connected';
+                } else {
+                    statusDot.className = 'status-dot disconnected';
+                    statusText.textContent = 'Disconnected';
+                }
+            }
+            
+            updateMockModeUI() {
+                console.log('Updating mock mode UI, isMockMode:', this.isMockMode);
+                
+                // Update mock mode banner
+                const mockBanner = document.getElementById('mockModeBanner');
+                if (mockBanner) {
+                    if (this.isMockMode) {
+                        mockBanner.classList.remove('hidden');
+                        document.body.classList.add('mock-banner-visible');
+                    } else {
+                        mockBanner.classList.add('hidden');
+                        document.body.classList.remove('mock-banner-visible');
+                    }
+                }
+                
+                // Update small mock indicator
+                const mockIndicator = document.getElementById('mockIndicator');
+                if (mockIndicator) {
+                    if (this.isMockMode) {
+                        mockIndicator.style.display = 'block';
+                    } else {
+                        mockIndicator.style.display = 'none';
+                    }
+                }
+            }
+        }
+        
+        // Global functions for button clicks
+        function startLiveChart() {
+            app.startLiveChart();
+        }
+        
+        function stopLiveChart() {
+            app.stopLiveChart();
+        }
+        
+        function hideMockBanner() {
+            document.getElementById('mockModeBanner').classList.add('hidden');
+        }
+        
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new LiveChartApp();
+        });
+    </script>
+</body>
+</html>
