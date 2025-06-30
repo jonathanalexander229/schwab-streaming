@@ -35,7 +35,7 @@ class Config:
 app = Flask(__name__)
 app.config.from_object(Config)
 app.permanent_session_lifetime = timedelta(hours=24)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Initialize feature manager
 feature_manager = FeatureManager(Config.DATA_DIR, socketio)
@@ -201,6 +201,40 @@ def session_info():
         'authenticated': session.get('authenticated', False),
         'mock_mode': session.get('mock_mode', False)
     })
+
+@app.route('/api/mock-speed', methods=['POST'])
+@require_auth
+def set_mock_speed():
+    """API endpoint to set mock data update speed"""
+    try:
+        data = request.get_json()
+        interval = float(data.get('interval', 1.0))
+        
+        # Validate interval bounds (allow very fast speeds for testing)
+        interval = max(0.001, min(60.0, interval))
+        
+        # Update mock speed if in mock mode and market data is enabled
+        if session.get('mock_mode') and feature_manager.is_feature_enabled('market_data'):
+            market_data_manager = feature_manager.get_feature('market_data')
+            if market_data_manager and hasattr(market_data_manager, 'equity_stream_manager'):
+                stream_manager = market_data_manager.equity_stream_manager
+                if hasattr(stream_manager, 'streamer') and stream_manager.streamer:
+                    if hasattr(stream_manager.streamer, 'set_update_interval'):
+                        stream_manager.streamer.set_update_interval(interval)
+                        logger.info(f"Updated mock data speed to {interval}s interval")
+                        return jsonify({'success': True, 'interval': interval})
+                    else:
+                        return jsonify({'success': False, 'error': 'Mock streamer does not support speed control'})
+                else:
+                    return jsonify({'success': False, 'error': 'Stream manager or streamer not available'})
+            else:
+                return jsonify({'success': False, 'error': 'Market data manager not available'})
+        else:
+            return jsonify({'success': False, 'error': 'Not in mock mode or market data disabled'})
+            
+    except Exception as e:
+        logger.error(f"Error setting mock speed: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/historical-data/<symbol>')
 @require_auth

@@ -80,6 +80,18 @@
                 <div style="font-size: 0.9em; color: #666;">
                     Valid symbols: 1-5 letters (e.g., AAPL, MSFT, SPY)
                 </div>
+                <div id="mockSpeedControlMain" class="mock-speed-control hidden" style="margin-top: 10px;">
+                    <label for="mockSpeedSelectMain" style="font-size: 0.9em; color: #666; margin-right: 10px;">Mock Data Speed:</label>
+                    <select id="mockSpeedSelectMain" onchange="updateMockSpeedMain()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                        <option value="0.01">100x Fast</option>
+                        <option value="0.02">50x Fast</option>
+                        <option value="0.05">20x Fast</option>
+                        <option value="0.1">10x Fast</option>
+                        <option value="0.2">5x Fast</option>
+                        <option value="0.5">2x Fast</option>
+                        <option value="1.0" selected>Normal (1s)</option>
+                    </select>
+                </div>
             </div>
             <div id="marketDataContainer" class="market-data-grid">
                 <div class="no-data">Add some stock symbols to start streaming market data!</div>

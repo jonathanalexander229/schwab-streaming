@@ -381,7 +381,7 @@ class MockSchwabStreamer:
     
     def set_update_interval(self, interval: float):
         """Set the update interval in seconds"""
-        self.update_interval = max(0.1, interval)
+        self.update_interval = max(0.001, interval)  # Allow very fast updates for testing
     
     def simulate_market_event(self, event_type: str, symbols: List[str] = None):
         """Simulate market events for testing"""

@@ -149,6 +149,19 @@
             <label>&nbsp;</label>
             <button id="stopChart" disabled onclick="stopLiveChart()">Stop Chart</button>
         </div>
+        
+        <div class="control-group" id="mockSpeedControl" style="display: none;">
+            <label for="mockSpeedSelect">Mock Data Speed:</label>
+            <select id="mockSpeedSelect" onchange="updateMockSpeed()">
+                <option value="0.01">100x Fast</option>
+                <option value="0.02">50x Fast</option>
+                <option value="0.05">20x Fast</option>
+                <option value="0.1">10x Fast</option>
+                <option value="0.2">5x Fast</option>
+                <option value="0.5">2x Fast</option>
+                <option value="1.0" selected>Normal (1s)</option>
+            </select>
+        </div>
     </div>
     
     <div class="chart-wrapper">
@@ -458,6 +471,16 @@
                         mockIndicator.style.display = 'none';
                     }
                 }
+                
+                // Update mock speed control
+                const mockSpeedControl = document.getElementById('mockSpeedControl');
+                if (mockSpeedControl) {
+                    if (this.isMockMode) {
+                        mockSpeedControl.style.display = 'flex';
+                    } else {
+                        mockSpeedControl.style.display = 'none';
+                    }
+                }
             }
         }
         
@@ -472,6 +495,31 @@
         
         function hideMockBanner() {
             document.getElementById('mockModeBanner').classList.add('hidden');
+        }
+        
+        function updateMockSpeed() {
+            const speedSelect = document.getElementById('mockSpeedSelect');
+            const interval = parseFloat(speedSelect.value);
+            
+            // Send speed update to server
+            fetch('/api/mock-speed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ interval: interval })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Mock data speed updated to ${interval}s interval`);
+                } else {
+                    console.error('Failed to update mock speed:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating mock speed:', error);
+            });
         }
         
         // Initialize app when page loads
