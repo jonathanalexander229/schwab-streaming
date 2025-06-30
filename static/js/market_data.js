@@ -191,6 +191,16 @@ class MarketDataApp {
             }
         }
 
+        // Update mock speed control
+        const mockSpeedControl = document.getElementById('mockSpeedControlMain');
+        if (mockSpeedControl) {
+            if (this.isMockMode) {
+                mockSpeedControl.classList.remove('hidden');
+            } else {
+                mockSpeedControl.classList.add('hidden');
+            }
+        }
+        
         // Add mock test controls if in mock mode
         this.updateMockTestControls();
     }
@@ -594,6 +604,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
 });
+
+// Global function for updating mock speed from main page
+function updateMockSpeedMain() {
+    const speedSelect = document.getElementById('mockSpeedSelectMain');
+    const interval = parseFloat(speedSelect.value);
+    
+    // Send speed update to server
+    fetch('/api/mock-speed', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ interval: interval })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`Mock data speed updated to ${interval}s interval`);
+            
+            // Show brief notification
+            const lastUpdate = document.getElementById('lastUpdateTime');
+            if (lastUpdate) {
+                const originalText = lastUpdate.textContent;
+                lastUpdate.textContent = `Speed updated to ${interval}s interval`;
+                lastUpdate.style.color = '#ff9800';
+                setTimeout(() => {
+                    lastUpdate.textContent = originalText;
+                    lastUpdate.style.color = '';
+                }, 2000);
+            }
+        } else {
+            console.error('Failed to update mock speed:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error updating mock speed:', error);
+    });
+}
 
 // Add CSS animations
 const style = document.createElement('style');

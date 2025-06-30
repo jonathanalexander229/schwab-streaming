@@ -6,6 +6,9 @@ A modular Flask-based web application for streaming market data from Charles Sch
 
 - 🔐 **Authentication**: Secure login with Schwab API or mock mode for testing
 - 📊 **Real-time Market Data**: Live streaming of equity quotes and prices
+- 📈 **Historical Data Collection**: Multi-frequency OHLC data collection and storage
+- 📊 **Interactive Charts**: TradingView-powered candlestick and volume charts
+- 📈 **Live Charts**: Real-time price charting with streaming data
 - 📋 **Watchlist Management**: Add/remove symbols to track
 - 💾 **Data Storage**: SQLite database with automatic data separation (mock vs real)
 - 🎭 **Mock Mode**: Simulated market data for testing without hitting real API
@@ -57,11 +60,59 @@ A modular Flask-based web application for streaming market data from Charles Sch
 - **Mock Mode**: No API keys required - generates realistic simulated data
 - **Real API**: Requires Schwab developer credentials for live market data
 
-### Adding Symbols
+### Live Data Features
+
+#### Adding Symbols
 
 1. Enter a stock symbol (e.g., "AAPL", "MSFT") in the search box
 2. Click "Add to Watchlist" 
 3. Real-time quotes will appear automatically
+
+#### Live Charts
+
+- Navigate to **Live Charts** page
+- Select symbol and update interval
+- View real-time price movements with TradingView charts
+- Adjustable mock data speed in mock mode
+
+### Historical Data Features
+
+#### Collecting Historical Data
+
+Collect OHLC (Open, High, Low, Close) data for analysis:
+
+```bash
+# Collect all watchlist symbols (5 years, all frequencies)
+python -m historical_collection.scripts.collect_historical --all-frequencies
+
+# Collect specific symbol (3 years with extended hours)
+python -m historical_collection.scripts.collect_historical --symbol AAPL --years 3 --include-extended-hours
+
+# Check collection status
+python -m historical_collection.scripts.collect_historical --status
+
+# Test API connection
+python -m historical_collection.scripts.collect_historical --test-connection
+```
+
+**Supported Frequencies:**
+- **1-minute**: High-resolution intraday data
+- **5-minute**: Medium-resolution intraday data  
+- **Daily**: End-of-day OHLC data
+
+**Collection Options:**
+- `--years N`: Number of years to collect (default: 5)
+- `--include-extended-hours`: Include pre/after-market data
+- `--all-frequencies`: Collect 1m, 5m, and daily data
+- `--verbose`: Detailed logging output
+
+#### Historical Charts
+
+- Navigate to **Historical Charts** page
+- Select symbol, timeframe, and date range
+- View interactive candlestick charts with volume
+- Supports multiple timeframes (1m, 5m, 15m, 1h, 1d)
+- Flexible date ranges (1d to all available data)
 
 ### Data Sources
 
@@ -110,10 +161,23 @@ schwab_streaming/
 │   ├── equity_stream.py      # Equity-specific processing and field mapping
 │   ├── equity_stream_manager.py # Equity streaming manager (inherits StreamManager)
 │   └── subscription_manager.py # Generic symbol subscription handling
+├── historical_collection/    # Historical data collection system
+│   ├── core/                 # Core collection components
+│   │   ├── historical_data_manager.py # Main collection orchestrator
+│   │   ├── ohlc_database.py  # OHLC data storage and retrieval
+│   │   └── rate_limited_collector.py # API rate limiting
+│   ├── scripts/              # Collection scripts
+│   │   └── collect_historical.py # CLI for historical data collection
+│   └── utils/                # Utilities
+│       └── data_validator.py # Data quality validation
 ├── mock_data.py              # Mock data generation and testing framework
 ├── templates/                # HTML templates
+│   ├── index.html           # Main dashboard
+│   ├── historical_charts.html # Historical data visualization
+│   └── live_charts.html     # Real-time charting interface
 ├── static/                   # CSS/JS assets
 ├── data/                     # SQLite databases
+├── watchlist.json           # Default symbol watchlist
 └── requirements.txt          # Python dependencies
 ```
 
@@ -173,7 +237,7 @@ def initialize_options_data(self, schwab_client, schwab_streamer, is_mock_mode):
 
 ### Database Schema
 
-**equity_quotes** table:
+**equity_quotes** table (Live Data):
 - `symbol`: Stock symbol (e.g., AAPL)
 - `timestamp`: Unix timestamp in milliseconds
 - `last_price`: Current trading price
@@ -185,6 +249,24 @@ def initialize_options_data(self, schwab_client, schwab_streamer, is_mock_mode):
 - `high_price`: Daily high
 - `low_price`: Daily low
 - `data_source`: 'MOCK' or 'SCHWAB_API'
+
+**ohlc_data** table (Historical Data):
+- `symbol`: Stock symbol (e.g., AAPL)
+- `timestamp`: Unix timestamp for candle start time
+- `open_price`: Opening price for the period
+- `high_price`: Highest price during the period
+- `low_price`: Lowest price during the period
+- `close_price`: Closing price for the period
+- `volume`: Total volume traded during the period
+- `frequency`: Data frequency ('1m', '5m', '1d', etc.)
+
+**collection_progress** table (Collection Tracking):
+- `symbol`: Stock symbol being collected
+- `frequency`: Data frequency being collected
+- `status`: Collection status ('pending', 'in_progress', 'completed', 'failed')
+- `start_date`: Collection start timestamp
+- `end_date`: Collection end timestamp
+- `last_updated`: Last collection update timestamp
 
 ## Testing
 
@@ -232,13 +314,23 @@ Tests include:
 
 ## API Endpoints
 
-### Market Data
+### Market Data (Live)
 
 - `GET /api/watchlist` - Get current watchlist
 - `POST /api/watchlist` - Add symbol to watchlist
 - `DELETE /api/watchlist` - Remove symbol from watchlist
 - `GET /api/market-data` - Get current market data
 - `GET /api/auth-status` - Get authentication status
+- `GET /api/session-info` - Get session information
+- `POST /api/mock-speed` - Set mock data update speed
+
+### Historical Data
+
+- `GET /api/historical-data/<symbol>` - Get historical OHLC data
+  - Query parameters:
+    - `timeframe`: Data frequency ('1m', '5m', '15m', '1h', '1d')
+    - `range`: Date range ('1d', '1w', '1m', '3m', '6m', '1y', 'all')
+- `GET /api/test-data` - Database stats and available symbols
 
 ### Testing (Mock Mode Only)
 
