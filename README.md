@@ -7,6 +7,7 @@ A modular Flask-based web application for streaming market data from Charles Sch
 - 🔐 **Authentication**: Secure login with Schwab API or mock mode for testing
 - 📊 **Real-time Market Data**: Live streaming of equity quotes and prices
 - 📈 **Historical Data Collection**: Multi-frequency OHLC data collection and storage
+- 🎯 **Options Flow Analysis**: Real-time options data collection and delta-weighted volume analysis
 - 📊 **Interactive Charts**: TradingView-powered candlestick and volume charts
 - 📈 **Live Charts**: Real-time price charting with streaming data
 - 📋 **Watchlist Management**: Add/remove symbols to track
@@ -114,6 +115,45 @@ python -m historical_collection.scripts.collect_historical --test-connection
 - Supports multiple timeframes (1m, 5m, 15m, 1h, 1d)
 - Flexible date ranges (1d to all available data)
 
+### Options Flow Analysis
+
+#### Collecting Options Data
+
+Collect real-time options data during market hours:
+
+```bash
+# Collect options data for all watchlist symbols
+python -m options_collection.scripts.collect_options
+
+# Force collection outside market hours (for testing)
+python -m options_collection.scripts.collect_options --force
+
+# Check collection status
+python -m options_collection.scripts.collect_options --status
+```
+
+**Options Data Includes:**
+- **Greeks**: Delta, Gamma, Theta, Vega for all options
+- **Volume Metrics**: Total volume, open interest
+- **Pricing**: Bid, ask, mark prices
+- **Contract Details**: Strike prices, expiration dates
+- **Market Hours Detection**: Automatic collection during trading hours
+
+#### Options Flow Dashboard
+
+- Navigate to **Options Flow** page
+- View real-time delta-weighted volume analysis
+- Monitor Put/Call ratios and Open Interest metrics
+- Track market sentiment across watchlist symbols
+- Automatic refresh every 30 seconds
+
+**Flow Metrics:**
+- **Call Δ×Vol**: Delta-weighted call volume (bullish flow)
+- **Put Δ×Vol**: Delta-weighted put volume (bearish flow)  
+- **Net Δ×Vol**: Net delta flow (Call - Put)
+- **P/C Ratio**: Put/Call volume ratio
+- **Open Interest**: Separate call and put open interest totals
+
 ### Data Sources
 
 - **Real Mode**: Live data from Charles Schwab API
@@ -170,11 +210,21 @@ schwab_streaming/
 │   │   └── collect_historical.py # CLI for historical data collection
 │   └── utils/                # Utilities
 │       └── data_validator.py # Data quality validation
+├── options_collection/       # Options flow analysis system
+│   ├── core/                 # Core options components
+│   │   ├── options_database.py # Options data storage with Greeks
+│   │   ├── options_collector.py # Real-time options data collection
+│   │   └── flow_calculator.py # Delta-weighted volume analysis
+│   ├── scripts/              # Options collection scripts
+│   │   └── collect_options.py # CLI for options data collection
+│   ├── api_routes.py         # Options flow API endpoints
+│   └── utils/                # Options utilities
 ├── mock_data.py              # Mock data generation and testing framework
 ├── templates/                # HTML templates
 │   ├── index.html           # Main dashboard
 │   ├── historical_charts.html # Historical data visualization
-│   └── live_charts.html     # Real-time charting interface
+│   ├── live_charts.html     # Real-time charting interface
+│   └── options_flow.html    # Options flow analysis dashboard
 ├── static/                   # CSS/JS assets
 ├── data/                     # SQLite databases
 ├── watchlist.json           # Default symbol watchlist
@@ -268,6 +318,23 @@ def initialize_options_data(self, schwab_client, schwab_streamer, is_mock_mode):
 - `end_date`: Collection end timestamp
 - `last_updated`: Last collection update timestamp
 
+**options_data** table (Options Flow):
+- `symbol`: Underlying stock symbol (e.g., AAPL)
+- `timestamp`: Unix timestamp for data collection
+- `option_type`: 'CALL' or 'PUT'
+- `strike_price`: Option strike price
+- `expiration_date`: Option expiration timestamp
+- `bid_price`: Option bid price
+- `ask_price`: Option ask price
+- `mark_price`: Option mark/mid price
+- `delta`: Option delta Greek
+- `gamma`: Option gamma Greek
+- `theta`: Option theta Greek
+- `vega`: Option vega Greek
+- `total_volume`: Option trading volume
+- `open_interest`: Option open interest
+- `underlying_price`: Current underlying stock price
+
 ## Testing
 
 Run the test suite:
@@ -332,6 +399,15 @@ Tests include:
     - `range`: Date range ('1d', '1w', '1m', '3m', '6m', '1y', 'all')
 - `GET /api/test-data` - Database stats and available symbols
 
+### Options Flow
+
+- `GET /api/options/flow` - Get options flow data for all watchlist symbols
+- `GET /api/options/flow/<symbol>` - Get options flow data for specific symbol
+- `GET /api/options/flow/<symbol>/history` - Get longer-term flow data for symbol
+  - Query parameters:
+    - `hours`: Hours back to analyze (default: 1)
+- `GET /api/options/status` - Get options data collection status
+
 ### Testing (Mock Mode Only)
 
 - `POST /api/test/market-event` - Trigger simulated market events
@@ -379,11 +455,11 @@ The application provides detailed logging:
 
 The modular architecture makes it easy to add new features:
 
-- **Options Flow**: Real-time options data and analysis
 - **Futures Data**: Commodity and index futures streaming
 - **News Integration**: Market news and sentiment analysis
 - **Technical Analysis**: Chart patterns and indicators
 - **Portfolio Tracking**: Position management and P&L
+- **Options Strategies**: Complex options analysis and backtesting
 
 Each new feature can reuse the existing `StreamManager` and `FeatureManager` infrastructure.
 

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Flow - Schwab Streaming</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
+        
+        .overall-sentiment { background: white; padding: 30px; border-radius: 8px; text-align: center; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .sentiment-emoji { font-size: 3em; margin-bottom: 10px; }
+        .sentiment-text { font-size: 1.5em; font-weight: bold; margin-bottom: 5px; }
+        .sentiment-details { color: #666; }
+        
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        
+        .flow-table { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .symbol { font-weight: bold; }
+        .bullish { color: #28a745; }
+        .bearish { color: #dc3545; }
+        .no-data { color: #666; }
+        
+        .loading, .error { text-align: center; padding: 40px; }
+        .error { color: #dc3545; background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
+        <a href="{{ url_for('historical_charts') }}" class="nav-btn">📊 Historical Charts</a>
+        <a href="{{ url_for('live_charts') }}" class="nav-btn">📈 Live Charts</a>
+        <a href="{{ url_for('options_flow') }}" class="nav-btn active">🎯 Options Flow</a>
+    </div>
+    
+    <h1>🎯 Options Flow</h1>
+    
+    <div class="overall-sentiment" id="overallSentiment">
+        <div class="sentiment-emoji" id="overallEmoji">⚪</div>
+        <div class="sentiment-text" id="overallText">Loading...</div>
+        <div class="sentiment-details" id="overallDetails">Calculating market sentiment...</div>
+    </div>
+    
+    <div class="controls">
+        <button onclick="refreshData()">🔄 Refresh</button>
+        <span id="lastUpdate" style="margin-left: auto; color: #666; font-size: 0.9em;"></span>
+    </div>
+    
+    <div class="flow-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Sentiment</th>
+                    <th>Call Δ×Vol</th>
+                    <th>Put Δ×Vol</th>
+                    <th>Net Δ×Vol</th>
+                    <th>P/C Ratio</th>
+                    <th>Call OI</th>
+                    <th>Put OI</th>
+                    <th>Underlying</th>
+                </tr>
+            </thead>
+            <tbody id="flowTableBody">
+                <tr><td colspan="9" class="loading">Loading options flow data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        async function loadFlowData() {
+            try {
+                const response = await fetch('/api/options/flow');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update overall sentiment
+                document.getElementById('overallEmoji').textContent = data.overall.sentiment_emoji;
+                document.getElementById('overallText').textContent = data.overall.sentiment;
+                document.getElementById('overallDetails').textContent = 
+                    `${data.overall.active_symbols}/${data.overall.total_symbols} symbols with data`;
+                
+                // Update table
+                const tbody = document.getElementById('flowTableBody');
+                
+                if (!data.symbols || Object.keys(data.symbols).length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No options flow data available</td></tr>';
+                    return;
+                }
+                
+                const rows = Object.entries(data.symbols).map(([symbol, flowData]) => {
+                    const sentimentClass = flowData.net_delta_volume >= 0 ? 'bullish' : 'bearish';
+                    
+                    return `
+                        <tr>
+                            <td class="symbol">${symbol}</td>
+                            <td>${flowData.sentiment_emoji} ${flowData.sentiment}</td>
+                            <td class="bullish">${flowData.call_delta_volume.toLocaleString()}</td>
+                            <td class="bearish">${flowData.put_delta_volume.toLocaleString()}</td>
+                            <td class="${sentimentClass}">${flowData.net_delta_volume.toLocaleString()}</td>
+                            <td>${flowData.put_call_ratio}</td>
+                            <td class="bullish">${flowData.call_open_interest.toLocaleString()}</td>
+                            <td class="bearish">${flowData.put_open_interest.toLocaleString()}</td>
+                            <td>$${flowData.underlying_price}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                tbody.innerHTML = rows;
+                
+                // Update timestamp - use collection time from first symbol with data
+                const symbolsWithData = Object.values(data.symbols).filter(s => s.data_available);
+                let lastUpdate;
+                
+                if (symbolsWithData.length > 0 && symbolsWithData[0].collection_time) {
+                    lastUpdate = `Data collected at: ${symbolsWithData[0].collection_time}`;
+                } else {
+                    lastUpdate = `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+                }
+                
+                document.getElementById('lastUpdate').textContent = lastUpdate;
+                
+            } catch (error) {
+                console.error('Error loading flow data:', error);
+                document.getElementById('overallEmoji').textContent = '❌';
+                document.getElementById('overallText').textContent = 'Error';
+                document.getElementById('overallDetails').textContent = error.message;
+                
+                const tbody = document.getElementById('flowTableBody');
+                tbody.innerHTML = `<tr><td colspan="9" class="error">Error: ${error.message}</td></tr>`;
+            }
+        }
+        
+        function refreshData() {
+            loadFlowData();
+        }
+        
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadFlowData);
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadFlowData, 30000);
+    </script>
+</body>
+</html>

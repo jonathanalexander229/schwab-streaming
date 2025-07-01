@@ -332,6 +332,12 @@ def test_data():
             'error': f'Test error: {str(e)}'
         }), 500
 
+@app.route('/options-flow')
+@require_auth
+def options_flow():
+    """Options flow dashboard page"""
+    return render_template('options_flow.html')
+
 @app.route('/chart-test')
 @require_auth
 def chart_test():
@@ -346,6 +352,15 @@ if Config.ENABLE_MARKET_DATA:
     logger.info("✅ Market data routes registered")
 else:
     logger.info("Market data feature disabled")
+
+# Register options routes
+try:
+    logger.info("Registering options flow routes...")
+    from options_collection.api_routes import options_bp
+    app.register_blueprint(options_bp)
+    logger.info("✅ Options flow routes registered")
+except Exception as e:
+    logger.error(f"❌ Failed to register options routes: {e}")
 
 # SocketIO event handlers
 @socketio.on('connect')
