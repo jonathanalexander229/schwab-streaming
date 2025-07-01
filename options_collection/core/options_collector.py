@@ -35,8 +35,8 @@ class OptionsCollector:
         
         logger.info(f"📊 Options collector initialized with {rate_limit_delay}s rate limit")
     
-    def is_trading_time(self) -> bool:
-        """Simple market hours check like the example"""
+    def is_trading_time(self, symbol: str = None) -> bool:
+        """Check if options trading is active for given symbol"""
         now_et = datetime.now(self.ET)
         current_time = (now_et.hour, now_et.minute)
         
@@ -44,12 +44,18 @@ class OptionsCollector:
         if now_et.weekday() >= 5:
             return False
         
-        # Extended hours check
-        start_minutes = self.EXTENDED_START[0] * 60 + self.EXTENDED_START[1]
-        end_minutes = self.EXTENDED_END[0] * 60 + self.EXTENDED_END[1]
+        # Regular market hours: 9:30 AM - 4:00 PM ET
+        market_start_minutes = self.MARKET_OPEN[0] * 60 + self.MARKET_OPEN[1]
+        market_end_minutes = self.MARKET_CLOSE[0] * 60 + self.MARKET_CLOSE[1]
         current_minutes = current_time[0] * 60 + current_time[1]
         
-        return start_minutes <= current_minutes <= end_minutes
+        # SPY and QQQ have 15-minute extended trading until 4:15 PM ET
+        if symbol and symbol.upper() in ['SPY', 'QQQ']:
+            extended_end_minutes = 16 * 60 + 15  # 4:15 PM
+            return market_start_minutes <= current_minutes <= extended_end_minutes
+        
+        # All other symbols: regular market hours only
+        return market_start_minutes <= current_minutes <= market_end_minutes
     
     def collect_options_chain(self, symbol: str, strike_count: int = 20) -> Dict[str, Any]:
         """
@@ -111,6 +117,16 @@ class OptionsCollector:
         total_inserted = 0
         
         for i, symbol in enumerate(symbols):
+            # Check trading hours for this specific symbol
+            if not self.is_trading_time(symbol):
+                logger.info(f"⏰ Skipping {symbol} - outside trading hours")
+                results.append({
+                    'symbol': symbol,
+                    'status': 'skipped_hours',
+                    'records_inserted': 0
+                })
+                continue
+            
             # Rate limiting between symbols
             if i > 0:
                 time.sleep(self.rate_limit_delay)
@@ -122,7 +138,7 @@ class OptionsCollector:
         return {
             'total_symbols': len(symbols),
             'total_records_inserted': total_inserted,
-            'is_trading_time': self.is_trading_time(),
+            'is_trading_time': any(self.is_trading_time(s) for s in symbols),
             'results': results
         }
     

@@ -204,32 +204,7 @@ Examples:
             
             return 0
         
-        # Check market hours (unless forced)
-        if not args.force_collect and not collector.is_trading_time():
-            if args.continuous:
-                # Calculate wait time until market opens
-                wait_seconds = calculate_time_until_market_open(collector)
-                wait_hours = wait_seconds // 3600
-                wait_minutes = (wait_seconds % 3600) // 60
-                
-                logger.info(f"📅 Market is closed. Waiting {wait_hours}h {wait_minutes}m until market opens...")
-                logger.info("⚠️  Use --force-collect to bypass market hours check")
-                
-                try:
-                    time.sleep(wait_seconds)
-                    logger.info("⏰ Market opening soon! Starting collection...")
-                except KeyboardInterrupt:
-                    logger.info("⏹️ Wait interrupted by user")
-                    return 0
-            else:
-                logger.info("📅 Market is closed. No collection will be performed.")
-                logger.info("⚠️  Use --force-collect to collect anyway (data may be stale)")
-                return 0
-        
-        if args.force_collect and not collector.is_trading_time():
-            logger.warning("⚠️ Collecting outside market hours - data may be stale!")
-        
-        # Determine symbols to collect
+        # Determine symbols to collect first
         if args.symbol:
             symbols = [args.symbol.upper()]
         else:
@@ -237,6 +212,35 @@ Examples:
             if not symbols:
                 logger.error("❌ No symbols found in watchlist")
                 return 1
+        
+        # Check market hours for any symbol (unless forced)
+        if not args.force_collect:
+            any_trading = any(collector.is_trading_time(s) for s in symbols)
+            if not any_trading:
+                if args.continuous:
+                    # Calculate wait time until market opens
+                    wait_seconds = calculate_time_until_market_open(collector)
+                    wait_hours = wait_seconds // 3600
+                    wait_minutes = (wait_seconds % 3600) // 60
+                    
+                    logger.info(f"📅 Market is closed. Waiting {wait_hours}h {wait_minutes}m until market opens...")
+                    logger.info("⚠️  Use --force-collect to bypass market hours check")
+                    
+                    try:
+                        time.sleep(wait_seconds)
+                        logger.info("⏰ Market opening soon! Starting collection...")
+                    except KeyboardInterrupt:
+                        logger.info("⏹️ Wait interrupted by user")
+                        return 0
+                else:
+                    logger.info("📅 Market is closed. No collection will be performed.")
+                    logger.info("⚠️  Use --force-collect to collect anyway (data may be stale)")
+                    return 0
+        
+        if args.force_collect:
+            any_trading = any(collector.is_trading_time(s) for s in symbols)
+            if not any_trading:
+                logger.warning("⚠️ Collecting outside market hours - data may be stale!")
         
         logger.info(f"🎯 Target symbols: {symbols}")
         logger.info(f"📈 Strike count: {args.strikes}")
@@ -270,23 +274,25 @@ Examples:
             try:
                 while True:
                     # Check market hours on each iteration (unless forced)
-                    if not args.force_collect and not collector.is_trading_time():
-                        logger.info("📅 Market closed during continuous collection")
-                        
-                        # Wait until market opens
-                        wait_seconds = calculate_time_until_market_open(collector)
-                        wait_hours = wait_seconds // 3600
-                        wait_minutes = (wait_seconds % 3600) // 60
-                        
-                        logger.info(f"⏳ Waiting {wait_hours}h {wait_minutes}m until market opens...")
-                        
-                        try:
-                            time.sleep(wait_seconds)
-                            logger.info("⏰ Market opening! Resuming collection...")
-                            continue
-                        except KeyboardInterrupt:
-                            logger.info("⏹️ Wait interrupted by user")
-                            return 0
+                    if not args.force_collect:
+                        any_trading = any(collector.is_trading_time(s) for s in symbols)
+                        if not any_trading:
+                            logger.info("📅 Market closed during continuous collection")
+                            
+                            # Wait until market opens
+                            wait_seconds = calculate_time_until_market_open(collector)
+                            wait_hours = wait_seconds // 3600
+                            wait_minutes = (wait_seconds % 3600) // 60
+                            
+                            logger.info(f"⏳ Waiting {wait_hours}h {wait_minutes}m until market opens...")
+                            
+                            try:
+                                time.sleep(wait_seconds)
+                                logger.info("⏰ Market opening! Resuming collection...")
+                                continue
+                            except KeyboardInterrupt:
+                                logger.info("⏹️ Wait interrupted by user")
+                                return 0
                     
                     collection_count += 1
                     logger.info(f"📊 Collection #{collection_count}")
