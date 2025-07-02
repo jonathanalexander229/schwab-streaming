@@ -332,11 +332,6 @@ def test_data():
             'error': f'Test error: {str(e)}'
         }), 500
 
-@app.route('/options-flow')
-@require_auth
-def options_flow():
-    """Options flow dashboard page"""
-    return render_template('options_flow.html')
 
 @app.route('/chart-test')
 @require_auth
@@ -344,17 +339,12 @@ def chart_test():
     """Simple chart test page"""
     return render_template('chart_test.html')
 
-@app.route('/options-flow-chart')
+@app.route('/options-flow')
 @require_auth
-def options_flow_chart():
-    """Options flow chart page (Phase 1)"""
-    return render_template('options_flow_chart.html')
+def options_flow():
+    """Options flow chart page (Premium Analysis)"""
+    return render_template('options_flow.html')
 
-@app.route('/options-flow-chart-agg')
-@require_auth
-def options_flow_chart_agg():
-    """Options flow chart page with aggregated data (Fast)"""
-    return render_template('options_flow_chart_agg.html')
 
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:

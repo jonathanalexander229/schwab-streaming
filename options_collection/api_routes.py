@@ -189,11 +189,24 @@ def get_aggregated_chart_data(symbol):
         # Get query parameters
         hours_back = request.args.get('hours', 24, type=int)  # Default 24 hours
         limit = request.args.get('limit', 1000, type=int)  # Limit for performance
+        date_str = request.args.get('date')  # Optional specific date YYYY-MM-DD
         
         # Calculate time range
         from datetime import datetime, timedelta
-        end_time = int(datetime.now().timestamp() * 1000)
-        start_time = end_time - (hours_back * 60 * 60 * 1000)
+        
+        if date_str:
+            # Use specific date if provided
+            try:
+                selected_date = datetime.strptime(date_str, '%Y-%m-%d')
+                # Get full day range for the selected date
+                start_time = int(selected_date.timestamp() * 1000)
+                end_time = int((selected_date + timedelta(days=1)).timestamp() * 1000)
+            except ValueError:
+                return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        else:
+            # Use hours_back from current time (existing behavior)
+            end_time = int(datetime.now().timestamp() * 1000)
+            start_time = end_time - (hours_back * 60 * 60 * 1000)
         
         # Use the new aggregation table for fast retrieval
         calculator = OptionsFlowCalculator()

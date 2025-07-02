@@ -6,6 +6,10 @@
     <title>Chart Test</title>
     <style>
         body { margin: 20px; font-family: Arial, sans-serif; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
         .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
         #chartContainer { border: 1px solid #ddd; height: 400px; }
         .error { color: red; padding: 20px; text-align: center; }
@@ -13,6 +17,14 @@
     </style>
 </head>
 <body>
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
+        <a href="{{ url_for('historical_charts') }}" class="nav-btn">📊 Historical Charts</a>
+        <a href="{{ url_for('live_charts') }}" class="nav-btn">📈 Live Charts</a>
+        <a href="{{ url_for('options_flow') }}" class="nav-btn">🎯 Options Flow</a>
+        <a href="{{ url_for('chart_test') }}" class="nav-btn active">🔬 Chart Test</a>
+    </div>
+    
     <h1>Historical Chart Test</h1>
     
     <div class="controls">
