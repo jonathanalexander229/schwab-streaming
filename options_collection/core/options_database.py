@@ -92,6 +92,62 @@ class OptionsDatabase:
                 ON options_data(option_type, strike_price)
             """)
             
+            # Create options flow aggregation table for fast chart data
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS options_flow_agg (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    
+                    -- Core identifiers
+                    symbol TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    
+                    -- Aggregated flow metrics (matching example script)
+                    call_delta_volume REAL NOT NULL DEFAULT 0,
+                    put_delta_volume REAL NOT NULL DEFAULT 0, 
+                    net_delta_volume REAL NOT NULL DEFAULT 0,
+                    delta_ratio REAL NOT NULL DEFAULT 0,
+                    
+                    -- Volume metrics
+                    call_volume INTEGER NOT NULL DEFAULT 0,
+                    put_volume INTEGER NOT NULL DEFAULT 0,
+                    total_volume INTEGER NOT NULL DEFAULT 0,
+                    
+                    -- Open interest metrics
+                    call_open_interest INTEGER NOT NULL DEFAULT 0,
+                    put_open_interest INTEGER NOT NULL DEFAULT 0,
+                    total_open_interest INTEGER NOT NULL DEFAULT 0,
+                    
+                    -- Put/Call ratios
+                    put_call_ratio REAL NOT NULL DEFAULT 0,
+                    put_call_oi_ratio REAL NOT NULL DEFAULT 0,
+                    
+                    -- Market context
+                    underlying_price REAL,
+                    
+                    -- Sentiment analysis
+                    sentiment TEXT,
+                    sentiment_strength REAL NOT NULL DEFAULT 0,
+                    
+                    -- Metadata
+                    total_records INTEGER NOT NULL DEFAULT 0,
+                    collection_timestamp INTEGER,
+                    
+                    -- Ensure unique records per symbol per timestamp
+                    UNIQUE(symbol, timestamp)
+                )
+            """)
+            
+            # Create indexes for fast chart queries
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_flow_agg_symbol_timestamp 
+                ON options_flow_agg(symbol, timestamp)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_flow_agg_timestamp 
+                ON options_flow_agg(timestamp)
+            """)
+            
             conn.commit()
             logger.info("✅ Options database schema created/verified")
     
@@ -309,3 +365,112 @@ class OptionsDatabase:
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT symbol FROM options_data ORDER BY symbol")
             return [row[0] for row in cursor.fetchall()]
+    
+    def insert_flow_aggregation(self, flow_data: Dict[str, Any]) -> bool:
+        """
+        Insert aggregated flow data for fast chart retrieval
+        
+        Args:
+            flow_data: Dictionary with aggregated flow metrics
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT OR REPLACE INTO options_flow_agg (
+                        symbol, timestamp, call_delta_volume, put_delta_volume, net_delta_volume,
+                        delta_ratio, call_volume, put_volume, total_volume,
+                        call_open_interest, put_open_interest, total_open_interest,
+                        put_call_ratio, put_call_oi_ratio, underlying_price,
+                        sentiment, sentiment_strength, total_records, collection_timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    flow_data.get('symbol'),
+                    flow_data.get('timestamp'),
+                    flow_data.get('call_delta_volume', 0),
+                    flow_data.get('put_delta_volume', 0),
+                    flow_data.get('net_delta_volume', 0),
+                    flow_data.get('delta_ratio', 0),
+                    flow_data.get('call_volume', 0),
+                    flow_data.get('put_volume', 0),
+                    flow_data.get('total_volume', 0),
+                    flow_data.get('call_open_interest', 0),
+                    flow_data.get('put_open_interest', 0),
+                    flow_data.get('total_open_interest', 0),
+                    flow_data.get('put_call_ratio', 0),
+                    flow_data.get('put_call_oi_ratio', 0),
+                    flow_data.get('underlying_price'),
+                    flow_data.get('sentiment'),
+                    flow_data.get('sentiment_strength', 0),
+                    flow_data.get('total_records', 0),
+                    flow_data.get('collection_timestamp')
+                ))
+                
+                conn.commit()
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error inserting flow aggregation: {e}")
+            return False
+    
+    def get_flow_aggregations(self, symbol: str, start_timestamp: int, end_timestamp: int,
+                             limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve pre-aggregated flow data for fast chart display
+        
+        Args:
+            symbol: Stock symbol
+            start_timestamp: Start time (Unix timestamp)
+            end_timestamp: End time (Unix timestamp)  
+            limit: Optional limit on number of records
+            
+        Returns:
+            List of aggregated flow records
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            query = """
+                SELECT * FROM options_flow_agg
+                WHERE symbol = ? AND timestamp >= ? AND timestamp <= ?
+                ORDER BY timestamp DESC
+            """
+            params = [symbol, start_timestamp, end_timestamp]
+            
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            return [dict(row) for row in rows]
+    
+    def get_latest_flow_aggregation(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the most recent flow aggregation for a symbol
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Latest flow aggregation record or None
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT * FROM options_flow_agg
+                WHERE symbol = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """, (symbol,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None

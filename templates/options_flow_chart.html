@@ -58,6 +58,7 @@
         
         .calls { background-color: #26a69a; }
         .puts { background-color: #ef5350; }
+        .underlying { background-color: #666666; }
         
         .chart-container {
             background: white;
@@ -135,6 +136,10 @@
                     <div class="legend-color puts"></div>
                     <span>Put Premium</span>
                 </div>
+                <div class="legend-item">
+                    <div class="legend-color underlying"></div>
+                    <span>Underlying Price</span>
+                </div>
             </div>
         </div>
         
@@ -148,8 +153,12 @@
                 <div class="stat-label">Total Put Premium</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="call-put-ratio">0.00</div>
-                <div class="stat-label">Call/Put Ratio</div>
+                <div class="stat-value" id="put-call-ratio">0.00</div>
+                <div class="stat-label">Put/Call Ratio</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="underlying-price">$0.00</div>
+                <div class="stat-label">SPY Price</div>
             </div>
         </div>
         
@@ -164,6 +173,7 @@
         let chart = null;
         let callsSeries = null;
         let putsSeries = null;
+        let underlyingSeries = null;
         
         function initChart() {
             const container = document.getElementById('chartContainer');
@@ -193,21 +203,56 @@
                     },
                     rightPriceScale: {
                         borderColor: '#cccccc',
+                        visible: true,
+                    },
+                    leftPriceScale: {
+                        borderColor: '#cccccc',
+                        visible: true,
                     },
                     crosshair: {
                         mode: LightweightCharts.CrosshairMode.Normal,
                     },
                 });
 
+                // Premium series on left scale (default) - no titles, no current value lines
                 callsSeries = chart.addLineSeries({
                     color: '#26a69a',
                     lineWidth: 2,
+                    priceScaleId: 'left',
+                    lastValueVisible: false,
+                    priceLineVisible: false,
                 });
 
                 putsSeries = chart.addLineSeries({
                     color: '#ef5350', 
                     lineWidth: 2,
+                    priceScaleId: 'left',
+                    lastValueVisible: false,
+                    priceLineVisible: false,
                 });
+
+                // Underlying price series on right scale - gray color with 50% opacity, no title, no current value lines
+                underlyingSeries = chart.addLineSeries({
+                    color: 'rgba(102, 102, 102, 0.5)',
+                    lineWidth: 2,
+                    priceScaleId: 'right',
+                    lastValueVisible: false,
+                    priceLineVisible: false,
+                });
+
+                // Add horizontal zero line for premium scale
+                const zeroLine = chart.addLineSeries({
+                    color: '#444444',
+                    lineWidth: 1,
+                    lineStyle: 0, // Solid line
+                    priceScaleId: 'left',
+                    crosshairMarkerVisible: false,
+                    lastValueVisible: false,
+                    priceLineVisible: false,
+                });
+                
+                // Set zero line data (will be set after we know the time range)
+                window.zeroLineSeries = zeroLine;
                 
                 return true;
                 
@@ -240,14 +285,17 @@
         }
 
         // Update stats
-        function updateStats(callsData, putsData) {
+        function updateStats(callsData, putsData, underlyingData) {
             const totalCalls = callsData.reduce((sum, item) => sum + item.value, 0);
             const totalPuts = putsData.reduce((sum, item) => sum + item.value, 0);
-            const ratio = totalPuts > 0 ? (totalCalls / totalPuts) : 0;
+            const ratio = totalCalls > 0 ? (totalPuts / totalCalls) : 0; // Put/Call ratio
+            const latestPrice = underlyingData && underlyingData.length > 0 ? 
+                                underlyingData[underlyingData.length - 1].value : 0;
 
             document.getElementById('total-calls').textContent = formatCurrency(totalCalls);
             document.getElementById('total-puts').textContent = formatCurrency(totalPuts);
-            document.getElementById('call-put-ratio').textContent = ratio.toFixed(2);
+            document.getElementById('put-call-ratio').textContent = ratio.toFixed(2);
+            document.getElementById('underlying-price').textContent = `$${latestPrice.toFixed(2)}`;
             
             document.getElementById('stats').style.display = 'flex';
         }
@@ -274,8 +322,27 @@
                 callsSeries.setData(data.calls);
                 putsSeries.setData(data.puts);
                 
+                // Set underlying price data if available
+                if (data.underlying && data.underlying.length > 0) {
+                    underlyingSeries.setData(data.underlying);
+                }
+                
+                // Set zero line data across the time range
+                if (data.calls && data.calls.length > 0 && window.zeroLineSeries) {
+                    const zeroData = [];
+                    const timeRange = [...data.calls, ...data.puts].map(point => point.time);
+                    const minTime = Math.min(...timeRange);
+                    const maxTime = Math.max(...timeRange);
+                    
+                    // Add zero line points at start and end
+                    zeroData.push({ time: minTime, value: 0 });
+                    zeroData.push({ time: maxTime, value: 0 });
+                    
+                    window.zeroLineSeries.setData(zeroData);
+                }
+                
                 // Update stats
-                updateStats(data.calls, data.puts);
+                updateStats(data.calls, data.puts, data.underlying);
                 
                 // Fit chart to data
                 chart.timeScale().fitContent();

@@ -57,9 +57,62 @@ class OptionsCollector:
         # All other symbols: regular market hours only
         return market_start_minutes <= current_minutes <= market_end_minutes
     
+    def _calculate_option_metrics(self, options_data: Dict[str, Any]) -> tuple[float, float, int, int, float]:
+        """
+        Calculate comprehensive option metrics (matching example script logic)
+        Returns: (call_delta_vol, put_delta_vol, call_vol, put_vol, underlying_price)
+        """
+        call_delta_vol = 0.0
+        put_delta_vol = 0.0
+        call_vol = 0
+        put_vol = 0
+        underlying_price = 0.0
+
+        if not options_data:
+            return call_delta_vol, put_delta_vol, call_vol, put_vol, underlying_price
+
+        # Get underlying price
+        underlying_price = options_data.get("underlying", {}).get("mark", 0.0)
+        
+        # Process calls
+        for expiry in options_data.get("callExpDateMap", {}):
+            for strike in options_data["callExpDateMap"][expiry]:
+                for option in options_data["callExpDateMap"][expiry][strike]:
+                    delta = option.get("delta", 0.0)
+                    volume = option.get("totalVolume", 0)
+                    if volume > 0:
+                        call_delta_vol += delta * volume
+                        call_vol += volume
+
+        # Process puts (delta is negative, so we take absolute value for put_delta_vol)
+        for expiry in options_data.get("putExpDateMap", {}):
+            for strike in options_data["putExpDateMap"][expiry]:
+                for option in options_data["putExpDateMap"][expiry][strike]:
+                    delta = option.get("delta", 0.0)
+                    volume = option.get("totalVolume", 0)
+                    if volume > 0:
+                        put_delta_vol += abs(delta) * volume  # Use absolute value
+                        put_vol += volume
+
+        return call_delta_vol, put_delta_vol, call_vol, put_vol, underlying_price
+    
+    def _count_options_in_data(self, options_data: Dict[str, Any]) -> int:
+        """Count total number of option contracts in the data"""
+        count = 0
+        
+        for expiry in options_data.get("callExpDateMap", {}):
+            for strike in options_data["callExpDateMap"][expiry]:
+                count += len(options_data["callExpDateMap"][expiry][strike])
+                
+        for expiry in options_data.get("putExpDateMap", {}):
+            for strike in options_data["putExpDateMap"][expiry]:
+                count += len(options_data["putExpDateMap"][expiry][strike])
+                
+        return count
+    
     def collect_options_chain(self, symbol: str, strike_count: int = 20) -> Dict[str, Any]:
         """
-        Collect options chain data for a single symbol
+        Streamlined options collection - calculate metrics on-the-fly like example script
         
         Args:
             symbol: Stock symbol to collect options for
@@ -91,30 +144,75 @@ class OptionsCollector:
                 options_data = response
             
             if not options_data:
-                return {'symbol': symbol, 'status': 'no_data', 'records_inserted': 0}
+                return {'symbol': symbol, 'status': 'no_data', 'aggregation_stored': False}
             
-            # Process and store the data
-            records = self._process_options_data(symbol, options_data)
-            inserted, duplicates = self.database.insert_options_data(records)
+            # Calculate metrics immediately (like example script)
+            call_delta_vol, put_delta_vol, call_vol, put_vol, underlying_price = self._calculate_option_metrics(options_data)
+            
+            # Calculate derived metrics
+            net_delta_vol = call_delta_vol - put_delta_vol
+            delta_ratio = call_delta_vol / put_delta_vol if put_delta_vol > 0 else float('inf')
+            total_volume = call_vol + put_vol
+            put_call_ratio = put_vol / call_vol if call_vol > 0 else float('inf')
+            
+            # Determine sentiment
+            sentiment = "Bullish" if net_delta_vol > 0 else "Bearish"
+            sentiment_strength = abs(net_delta_vol) / (call_delta_vol + put_delta_vol) if (call_delta_vol + put_delta_vol) > 0 else 0
+            
+            # Store only aggregated metrics (no raw data)
+            timestamp = int(datetime.now().timestamp() * 1000)
+            aggregation = {
+                'symbol': symbol,
+                'timestamp': timestamp,
+                'call_delta_volume': call_delta_vol,
+                'put_delta_volume': put_delta_vol,
+                'net_delta_volume': net_delta_vol,
+                'delta_ratio': delta_ratio,
+                'call_volume': call_vol,
+                'put_volume': put_vol,
+                'total_volume': total_volume,
+                'call_open_interest': 0,  # Could calculate if needed
+                'put_open_interest': 0,   # Could calculate if needed
+                'total_open_interest': 0,
+                'put_call_ratio': put_call_ratio,
+                'put_call_oi_ratio': 0,
+                'underlying_price': underlying_price,
+                'sentiment': sentiment,
+                'sentiment_strength': sentiment_strength,
+                'total_records': self._count_options_in_data(options_data),
+                'collection_timestamp': timestamp
+            }
+            
+            # Log the aggregation values before storing
+            logger.info(f"📊 {symbol} Flow: Call Δ×Vol={call_delta_vol:,.0f}, Put Δ×Vol={put_delta_vol:,.0f}, Net={net_delta_vol:,.0f}, Underlying=${underlying_price:.2f}")
+            
+            aggregation_stored = self.database.insert_flow_aggregation(aggregation)
+            
+            if aggregation_stored:
+                logger.info(f"✅ Stored aggregated flow metrics for {symbol}")
+            else:
+                logger.error(f"❌ Failed to store aggregated metrics for {symbol}")
             
             return {
                 'symbol': symbol,
                 'status': 'success',
-                'records_inserted': inserted,
-                'duplicates': duplicates,
-                'total_records': len(records)
+                'aggregation_stored': aggregation_stored,
+                'call_delta_volume': call_delta_vol,
+                'put_delta_volume': put_delta_vol,
+                'net_delta_volume': net_delta_vol,
+                'underlying_price': underlying_price
             }
             
         except Exception as e:
             logger.error(f"❌ Error collecting options for {symbol}: {e}")
-            return {'symbol': symbol, 'status': 'error', 'message': str(e), 'records_inserted': 0}
+            return {'symbol': symbol, 'status': 'error', 'message': str(e), 'aggregation_stored': False}
     
     def collect_multiple_symbols(self, symbols: List[str], strike_count: int = 20) -> Dict[str, Any]:
         """
-        Collect options for multiple symbols with rate limiting (like the example)
+        Collect options for multiple symbols with rate limiting (streamlined approach)
         """
         results = []
-        total_inserted = 0
+        total_aggregations = 0
         
         for i, symbol in enumerate(symbols):
             # Check trading hours for this specific symbol
@@ -123,7 +221,7 @@ class OptionsCollector:
                 results.append({
                     'symbol': symbol,
                     'status': 'skipped_hours',
-                    'records_inserted': 0
+                    'aggregation_stored': False
                 })
                 continue
             
@@ -133,99 +231,13 @@ class OptionsCollector:
             
             result = self.collect_options_chain(symbol, strike_count)
             results.append(result)
-            total_inserted += result.get('records_inserted', 0)
+            if result.get('aggregation_stored'):
+                total_aggregations += 1
         
         return {
             'total_symbols': len(symbols),
-            'total_records_inserted': total_inserted,
+            'total_aggregations_stored': total_aggregations,
             'is_trading_time': any(self.is_trading_time(s) for s in symbols),
             'results': results
         }
     
-    def _process_options_data(self, symbol: str, options_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Convert API response to database records
-        """
-        records = []
-        timestamp = int(datetime.now().timestamp() * 1000)
-        underlying_price = options_data.get("underlying", {}).get("mark", 0.0)
-        
-        # Process calls
-        for expiry in options_data.get("callExpDateMap", {}):
-            for strike_price in options_data["callExpDateMap"][expiry]:
-                for option in options_data["callExpDateMap"][expiry][strike_price]:
-                    record = self._create_record(symbol, timestamp, "CALL", expiry, 
-                                               float(strike_price), option, underlying_price)
-                    records.append(record)
-        
-        # Process puts  
-        for expiry in options_data.get("putExpDateMap", {}):
-            for strike_price in options_data["putExpDateMap"][expiry]:
-                for option in options_data["putExpDateMap"][expiry][strike_price]:
-                    record = self._create_record(symbol, timestamp, "PUT", expiry, 
-                                               float(strike_price), option, underlying_price)
-                    records.append(record)
-        
-        logger.info(f"📊 Processed {len(records)} options records for {symbol}")
-        return records
-    
-    def _create_record(self, symbol: str, timestamp: int, option_type: str, 
-                      expiry: str, strike_price: float, option_data: Dict[str, Any], 
-                      underlying_price: float) -> Dict[str, Any]:
-        """
-        Create database record from option data - store everything we get from API
-        """
-        # Clean up expiration date format
-        expiration_date = expiry.split(':')[0] if ':' in expiry else expiry
-        
-        # Simple intrinsic value calculation
-        if option_type == "CALL":
-            intrinsic_value = max(0, underlying_price - strike_price)
-        else:  # PUT
-            intrinsic_value = max(0, strike_price - underlying_price)
-        
-        mark = option_data.get("mark", 0.0)
-        extrinsic_value = mark - intrinsic_value if mark else None
-        
-        # Calculate days to expiration
-        try:
-            exp_date = datetime.strptime(expiration_date, '%Y-%m-%d')
-            time_to_expiration = (exp_date - datetime.now()).days
-        except:
-            time_to_expiration = None
-        
-        # Store all available data from API
-        return {
-            'symbol': symbol,
-            'timestamp': timestamp,
-            'option_type': option_type,
-            'expiration_date': expiration_date,
-            'strike_price': strike_price,
-            
-            # Pricing data (store whatever API gives us)
-            'mark': option_data.get("mark"),
-            'bid': option_data.get("bid"),
-            'ask': option_data.get("ask"),
-            'last': option_data.get("last"),
-            
-            # Volume and interest
-            'total_volume': option_data.get("totalVolume"),
-            'open_interest': option_data.get("openInterest"),
-            
-            # Greeks (store all available)
-            'delta': option_data.get("delta"),
-            'gamma': option_data.get("gamma"),
-            'theta': option_data.get("theta"),
-            'vega': option_data.get("vega"),
-            'rho': option_data.get("rho"),
-            
-            # Volatility
-            'implied_volatility': option_data.get("volatility"),
-            'theoretical_value': option_data.get("theoreticalValue"),
-            
-            # Calculated fields
-            'time_to_expiration': time_to_expiration,
-            'intrinsic_value': intrinsic_value,
-            'extrinsic_value': extrinsic_value,
-            'underlying_price': underlying_price
-        }

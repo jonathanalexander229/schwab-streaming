@@ -87,9 +87,9 @@ def get_chart_data(symbol):
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             
-            # Get raw data including delta and volume for flow calculation
+            # Get raw data including delta, volume, and underlying price for flow calculation
             query = """
-            SELECT timestamp, option_type, delta, total_volume
+            SELECT timestamp, option_type, delta, total_volume, underlying_price
             FROM options_data 
             WHERE symbol = ? AND total_volume > 0 AND delta IS NOT NULL
             ORDER BY timestamp
@@ -101,15 +101,16 @@ def get_chart_data(symbol):
             return jsonify({
                 'symbol': symbol,
                 'calls': [],
-                'puts': []
+                'puts': [],
+                'underlying': []
             })
         
         # Group by 5-minute buckets in Python
         from collections import defaultdict
-        buckets = defaultdict(lambda: {'CALL': 0, 'PUT': 0})
+        buckets = defaultdict(lambda: {'CALL': 0, 'PUT': 0, 'underlying_prices': []})
         
         for row in results:
-            timestamp_ms, option_type, delta, total_volume = row
+            timestamp_ms, option_type, delta, total_volume, underlying_price = row
             # Convert to datetime and round to 5-minute bucket
             dt = datetime.fromtimestamp(timestamp_ms / 1000)
             # Round to 5-minute intervals
@@ -124,6 +125,10 @@ def get_chart_data(symbol):
                 delta_volume = abs(delta) * total_volume  # Use absolute value for puts
             
             buckets[bucket_timestamp][option_type] += delta_volume
+            
+            # Collect underlying prices for this bucket
+            if underlying_price and underlying_price > 0:
+                buckets[bucket_timestamp]['underlying_prices'].append(underlying_price)
         
         # Calculate cumulative net flow from baseline
         sorted_timestamps = sorted(buckets.keys())
@@ -134,6 +139,7 @@ def get_chart_data(symbol):
         
         calls_data = []
         puts_data = []
+        underlying_data = []
         
         for timestamp in sorted_timestamps:
             current_calls = buckets[timestamp]['CALL']
@@ -152,15 +158,84 @@ def get_chart_data(symbol):
                 'time': timestamp,
                 'value': float(cumulative_put_change)
             })
+            
+            # Add underlying price (average for this bucket)
+            underlying_prices = buckets[timestamp]['underlying_prices']
+            if underlying_prices:
+                avg_price = sum(underlying_prices) / len(underlying_prices)
+                underlying_data.append({
+                    'time': timestamp,
+                    'value': float(avg_price)
+                })
         
         return jsonify({
             'symbol': symbol,
             'calls': calls_data,
-            'puts': puts_data
+            'puts': puts_data,
+            'underlying': underlying_data
         })
         
     except Exception as e:
         logger.error(f"Error getting chart data for {symbol}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@options_bp.route('/chart-agg/<symbol>')
+@require_auth
+def get_aggregated_chart_data(symbol):
+    """Get pre-aggregated flow data for fast chart display"""
+    try:
+        symbol = symbol.upper()
+        
+        # Get query parameters
+        hours_back = request.args.get('hours', 24, type=int)  # Default 24 hours
+        limit = request.args.get('limit', 1000, type=int)  # Limit for performance
+        
+        # Calculate time range
+        from datetime import datetime, timedelta
+        end_time = int(datetime.now().timestamp() * 1000)
+        start_time = end_time - (hours_back * 60 * 60 * 1000)
+        
+        # Use the new aggregation table for fast retrieval
+        calculator = OptionsFlowCalculator()
+        aggregations = calculator.database.get_flow_aggregations(
+            symbol, start_time, end_time, limit
+        )
+        
+        if not aggregations:
+            return jsonify({
+                'symbol': symbol,
+                'data': [],
+                'message': 'No aggregated data found'
+            })
+        
+        # Convert to chart format (matching example script structure)
+        chart_data = []
+        for agg in reversed(aggregations):  # Reverse to get chronological order
+            chart_data.append({
+                'timestamp': agg['timestamp'],
+                'time': datetime.fromtimestamp(agg['timestamp'] / 1000).isoformat(),
+                'call_delta_volume': agg['call_delta_volume'],
+                'put_delta_volume': agg['put_delta_volume'],
+                'net_delta_volume': agg['net_delta_volume'],
+                'delta_ratio': agg['delta_ratio'],
+                'call_volume': agg['call_volume'],
+                'put_volume': agg['put_volume'],
+                'total_volume': agg['total_volume'],
+                'underlying_price': agg['underlying_price'],
+                'sentiment': agg['sentiment'],
+                'sentiment_strength': agg['sentiment_strength']
+            })
+        
+        return jsonify({
+            'symbol': symbol,
+            'data': chart_data,
+            'total_points': len(chart_data),
+            'time_range_hours': hours_back,
+            'latest_timestamp': chart_data[-1]['timestamp'] if chart_data else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting aggregated chart data for {symbol}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @options_bp.route('/status')

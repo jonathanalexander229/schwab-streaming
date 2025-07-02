@@ -350,6 +350,12 @@ def options_flow_chart():
     """Options flow chart page (Phase 1)"""
     return render_template('options_flow_chart.html')
 
+@app.route('/options-flow-chart-agg')
+@require_auth
+def options_flow_chart_agg():
+    """Options flow chart page with aggregated data (Fast)"""
+    return render_template('options_flow_chart_agg.html')
+
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")

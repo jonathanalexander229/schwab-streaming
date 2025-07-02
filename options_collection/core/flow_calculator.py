@@ -1,4 +1,5 @@
 import logging
+import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from .options_database import OptionsDatabase
@@ -262,3 +263,84 @@ class OptionsFlowCalculator:
             },
             'timestamp': datetime.now().isoformat()
         }
+    
+    def calculate_and_store_aggregation(self, symbol: str, timestamp: int) -> bool:
+        """
+        Calculate flow metrics for the given timestamp and store in aggregation table
+        This method bridges raw data storage and aggregated chart data
+        
+        Args:
+            symbol: Stock symbol
+            timestamp: Collection timestamp to aggregate
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Get all raw options data for this exact timestamp
+            with sqlite3.connect(self.database.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT * FROM options_data 
+                    WHERE symbol = ? AND timestamp = ?
+                """, (symbol, timestamp))
+                
+                rows = cursor.fetchall()
+                if not rows:
+                    logger.warning(f"No raw data found for {symbol} at timestamp {timestamp}")
+                    return False
+                
+                # Convert to expected format for _calculate_flow_metrics
+                options_data = []
+                for row in rows:
+                    options_data.append({
+                        'symbol': row[1], 'timestamp': row[2], 'option_type': row[3],
+                        'expiration_date': row[4], 'strike_price': row[5], 'mark': row[6],
+                        'bid': row[7], 'ask': row[8], 'last': row[9], 'total_volume': row[10],
+                        'open_interest': row[11], 'delta': row[12], 'gamma': row[13],
+                        'theta': row[14], 'vega': row[15], 'rho': row[16],
+                        'implied_volatility': row[17], 'theoretical_value': row[18],
+                        'time_to_expiration': row[19], 'intrinsic_value': row[20],
+                        'extrinsic_value': row[21], 'underlying_price': row[22]
+                    })
+            
+            # Calculate flow metrics using existing logic
+            flow_metrics = self._calculate_flow_metrics(symbol, options_data, "5m")
+            
+            # Prepare aggregation record with timestamp from raw data
+            agg_data = {
+                'symbol': symbol,
+                'timestamp': timestamp,  # Use the collection timestamp
+                'call_delta_volume': flow_metrics['call_delta_volume'],
+                'put_delta_volume': flow_metrics['put_delta_volume'],
+                'net_delta_volume': flow_metrics['net_delta_volume'],
+                'delta_ratio': flow_metrics['delta_ratio'],
+                'call_volume': flow_metrics['call_volume'],
+                'put_volume': flow_metrics['put_volume'],
+                'total_volume': flow_metrics['total_volume'],
+                'call_open_interest': flow_metrics['call_open_interest'],
+                'put_open_interest': flow_metrics['put_open_interest'],
+                'total_open_interest': flow_metrics['total_open_interest'],
+                'put_call_ratio': flow_metrics['put_call_ratio'],
+                'put_call_oi_ratio': flow_metrics['put_call_oi_ratio'],
+                'underlying_price': flow_metrics['underlying_price'],
+                'sentiment': flow_metrics['sentiment'],
+                'sentiment_strength': flow_metrics['sentiment_strength'],
+                'total_records': flow_metrics['total_records'],
+                'collection_timestamp': timestamp
+            }
+            
+            # Store aggregation
+            success = self.database.insert_flow_aggregation(agg_data)
+            
+            if success:
+                logger.info(f"✅ Stored flow aggregation for {symbol} at {datetime.fromtimestamp(timestamp/1000).strftime('%H:%M:%S')}")
+            else:
+                logger.error(f"❌ Failed to store flow aggregation for {symbol}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error calculating/storing aggregation for {symbol}: {e}")
+            return False

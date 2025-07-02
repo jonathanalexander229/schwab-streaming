@@ -52,7 +52,7 @@ def load_watchlist_symbols(watchlist_path: str = 'watchlist.json') -> list:
         return []
 
 def calculate_time_until_market_open(collector):
-    """Calculate seconds until market opens (with 1 minute buffer)"""
+    """Calculate seconds until market opens"""
     import pytz
     
     now_et = datetime.now(collector.ET)
@@ -64,9 +64,9 @@ def calculate_time_until_market_open(collector):
     else:
         next_market_day = now_et
     
-    # Set to 9:29 AM ET (1 minute before market open)
+    # Set to 9:30 AM ET (actual market open time, matching is_trading_time logic)
     market_open_time = next_market_day.replace(
-        hour=9, minute=29, second=0, microsecond=0
+        hour=collector.MARKET_OPEN[0], minute=collector.MARKET_OPEN[1], second=0, microsecond=0
     )
     
     # If we're past market open time today, move to next business day
@@ -253,14 +253,16 @@ Examples:
                 result = collector.collect_options_chain(symbols[0], args.strikes)
                 print(f"\n✅ Collection Result for {symbols[0]}:")
                 print(f"Status: {result['status']}")
-                print(f"Records inserted: {result.get('records_inserted', 0)}")
-                if result.get('duplicates', 0) > 0:
-                    print(f"Duplicates skipped: {result['duplicates']}")
+                print(f"Aggregation stored: {result.get('aggregation_stored', False)}")
+                if result.get('call_delta_volume') is not None:
+                    print(f"Call Δ×Volume: {result.get('call_delta_volume', 0):,.0f}")
+                    print(f"Put Δ×Volume: {result.get('put_delta_volume', 0):,.0f}")
+                    print(f"Net Δ×Volume: {result.get('net_delta_volume', 0):,.0f}")
             else:
                 result = collector.collect_multiple_symbols(symbols, args.strikes)
                 print(f"\n✅ Collection Summary:")
                 print(f"Symbols processed: {result['total_symbols']}")
-                print(f"Total records inserted: {result['total_records_inserted']}")
+                print(f"Aggregations stored: {result.get('total_aggregations_stored', 0)}/{result['total_symbols']}")
             
             return 0
         
@@ -299,10 +301,12 @@ Examples:
                     
                     if len(symbols) == 1:
                         result = collector.collect_options_chain(symbols[0], args.strikes)
-                        logger.info(f"✅ {symbols[0]}: {result.get('records_inserted', 0)} records")
+                        status = "✅ Aggregated" if result.get('aggregation_stored') else "❌ Failed"
+                        logger.info(f"{status} {symbols[0]}: Delta×Vol stored")
                     else:
                         result = collector.collect_multiple_symbols(symbols, args.strikes)
-                        logger.info(f"✅ Total: {result['total_records_inserted']} records")
+                        total_agg = result.get('total_aggregations_stored', 0)
+                        logger.info(f"✅ Total: {total_agg}/{len(symbols)} aggregations stored")
                     
                     logger.info(f"⏳ Waiting {args.interval}s until next collection...")
                     time.sleep(args.interval)
