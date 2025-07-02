@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historical Charts - Schwab Streaming</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
+        .controls { margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-weight: bold; font-size: 0.9em; color: #333; }
+        select, button { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background: #007bff; color: white; cursor: pointer; border: none; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .chart-wrapper { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .chart-header { background: #f8f9fa; padding: 10px 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .chart-title { font-size: 1.2em; font-weight: bold; margin: 0; }
+        .chart-info { font-size: 0.9em; color: #666; }
+        #chartContainer { height: 500px; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .error { text-align: center; padding: 40px; color: #dc3545; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="nav-buttons">
+        <a href="/" class="nav-btn">🏠 Home</a>
+        <a href="/historical-charts" class="nav-btn active">📊 Historical Charts</a>
+        <a href="/chart-test" class="nav-btn">🧪 Test Page</a>
+    </div>
+    
+    <h1>📈 Historical Data Charts</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label for="symbolSelect">Symbol:</label>
+            <select id="symbolSelect">
+                <option value="">Select Symbol...</option>
+                {% for symbol in symbols %}
+                <option value="{{ symbol }}">{{ symbol }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="timeframeSelect">Timeframe:</label>
+            <select id="timeframeSelect">
+                <option value="1m">1 Minute</option>
+                <option value="5m">5 Minutes</option>
+                <option value="15m">15 Minutes</option>
+                <option value="1h">1 Hour</option>
+                <option value="1d">1 Day</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label for="rangeSelect">Date Range:</label>
+            <select id="rangeSelect">
+                <option value="1d">Last 1 Day</option>
+                <option value="1w" selected>Last 1 Week</option>
+                <option value="1m">Last 1 Month</option>
+                <option value="3m">Last 3 Months</option>
+                <option value="6m">Last 6 Months</option>
+                <option value="1y">Last 1 Year</option>
+                <option value="all">All Data</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button id="loadChart" disabled onclick="loadChart()">Load Chart</button>
+        </div>
+        
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button onclick="testAPI()">🔧 Test API</button>
+        </div>
+    </div>
+    
+    <div class="chart-wrapper">
+        <div class="chart-header">
+            <h3 class="chart-title" id="chartTitle">Select a symbol to view chart</h3>
+            <div class="chart-info" id="chartInfo"></div>
+        </div>
+        <div id="chartContainer">
+            <div class="loading">Select a symbol and click "Load Chart" to view historical data</div>
+        </div>
+    </div>
+
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <script>
+        let chart = null;
+        let candlestickSeries = null;
+        let volumeSeries = null;
+        
+        function log(message) {
+            console.log(message);
+        }
+        
+        function initChart() {
+            log('Initializing chart...');
+            const container = document.getElementById('chartContainer');
+            container.innerHTML = '';
+            
+            if (typeof LightweightCharts === 'undefined') {
+                log('ERROR: LightweightCharts not loaded');
+                container.innerHTML = '<div class="error">LightweightCharts library not loaded</div>';
+                return false;
+            }
+            
+            try {
+                chart = LightweightCharts.createChart(container, {
+                    width: container.clientWidth,
+                    height: 500,
+                    layout: { background: { color: '#ffffff' }, textColor: '#333' },
+                    grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+                    rightPriceScale: { borderColor: '#cccccc' },
+                    timeScale: { borderColor: '#cccccc', timeVisible: true, secondsVisible: false },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                });
+                
+                candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderVisible: false,
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                });
+                
+                volumeSeries = chart.addHistogramSeries({
+                    color: '#26a69a',
+                    priceFormat: { type: 'volume' },
+                    priceScaleId: '',
+                });
+                
+                chart.priceScale('').applyOptions({
+                    scaleMargins: { top: 0.8, bottom: 0 },
+                });
+                
+                window.addEventListener('resize', () => {
+                    if (chart) {
+                        chart.applyOptions({ width: container.clientWidth });
+                    }
+                });
+                
+                log('Chart initialized successfully');
+                return true;
+            } catch (error) {
+                log('ERROR initializing chart: ' + error.message);
+                container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                return false;
+            }
+        }
+        
+        async function testAPI() {
+            log('Testing API...');
+            try {
+                const response = await fetch('/api/test-data');
+                const data = await response.json();
+                log('API test successful');
+                alert('API test successful! Check console for details.');
+                console.log('API data:', data);
+            } catch (error) {
+                log('API test error: ' + error.message);
+                alert('API test failed: ' + error.message);
+            }
+        }
+        
+        async function loadChart() {
+            const symbol = document.getElementById('symbolSelect').value;
+            const timeframe = document.getElementById('timeframeSelect').value;
+            const range = document.getElementById('rangeSelect').value;
+            
+            if (!symbol) {
+                alert('Please select a symbol');
+                return;
+            }
+            
+            log('Loading chart for ' + symbol);
+            
+            const container = document.getElementById('chartContainer');
+            container.innerHTML = '<div class="loading">Loading data...</div>';
+            
+            try {
+                const url = `/api/historical-data/${symbol}?timeframe=${timeframe}&range=${range}`;
+                log('Fetching: ' + url);
+                
+                const response = await fetch(url);
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log('Received ' + (data.data ? data.data.length : 0) + ' data points');
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.data || data.data.length === 0) {
+                    container.innerHTML = '<div class="error">No data available</div>';
+                    updateChartTitle(symbol, 'No Data');
+                    return;
+                }
+                
+                // Reinitialize chart
+                if (!initChart()) return;
+                
+                // Prepare data
+                const candleData = data.data.map(item => ({
+                    time: item.timestamp,
+                    open: parseFloat(item.open_price),
+                    high: parseFloat(item.high_price),
+                    low: parseFloat(item.low_price),
+                    close: parseFloat(item.close_price),
+                }));
+                
+                const volumeData = data.data.map(item => ({
+                    time: item.timestamp,
+                    value: parseFloat(item.volume),
+                    color: parseFloat(item.close_price) >= parseFloat(item.open_price) ? '#26a69a' : '#ef5350',
+                }));
+                
+                log('Setting chart data...');
+                candlestickSeries.setData(candleData);
+                volumeSeries.setData(volumeData);
+                chart.timeScale().fitContent();
+                
+                updateChartTitle(symbol, `${data.data.length} candles`);
+                updateChartInfo(data);
+                
+                log('Chart loaded successfully!');
+                
+            } catch (error) {
+                log('ERROR loading chart: ' + error.message);
+                container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                updateChartTitle(symbol, 'Error');
+            }
+        }
+        
+        function updateChartTitle(symbol, info) {
+            const timeframe = document.getElementById('timeframeSelect').value;
+            const range = document.getElementById('rangeSelect').value;
+            document.getElementById('chartTitle').textContent = 
+                `${symbol} - ${timeframe.toUpperCase()} - ${range.toUpperCase()} | ${info}`;
+        }
+        
+        function updateChartInfo(data) {
+            const info = document.getElementById('chartInfo');
+            if (data.data && data.data.length > 0) {
+                const latest = data.data[data.data.length - 1];
+                const earliest = data.data[0];
+                info.textContent = `${new Date(earliest.timestamp * 1000).toLocaleDateString()} to ${new Date(latest.timestamp * 1000).toLocaleDateString()}`;
+            } else {
+                info.textContent = '';
+            }
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, setting up event listeners...');
+            
+            const symbolSelect = document.getElementById('symbolSelect');
+            const loadButton = document.getElementById('loadChart');
+            
+            symbolSelect.addEventListener('change', () => {
+                loadButton.disabled = !symbolSelect.value;
+            });
+            
+            log('Event listeners set up successfully');
+        });
+    </script>
+</body>
+</html>

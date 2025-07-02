@@ -25,18 +25,38 @@ class OptionsFlowCalculator:
             Dictionary with flow metrics
         """
         try:
-            # Get all data for symbol
-            end_time = int(datetime.now().timestamp() * 1000)
-            start_time = 0  # Get all historical data
-            
-            all_data = self.database.get_options_data(symbol, start_time, end_time)
-            
-            if not all_data:
-                return self._empty_flow_result(symbol)
-            
-            # Find the most recent timestamp and use only that data
-            latest_timestamp = max(record['timestamp'] for record in all_data)
-            options_data = [record for record in all_data if record['timestamp'] == latest_timestamp]
+            # Get latest data by finding max timestamp and getting those records
+            import sqlite3
+            with sqlite3.connect(self.database.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Get the latest timestamp for this symbol and all records with that timestamp
+                cursor.execute("""
+                    SELECT * FROM options_data 
+                    WHERE symbol = ? AND timestamp = (
+                        SELECT MAX(timestamp) FROM options_data WHERE symbol = ?
+                    )
+                """, (symbol, symbol))
+                
+                rows = cursor.fetchall()
+                if not rows:
+                    return self._empty_flow_result(symbol)
+                
+                # Convert to expected format (matching get_options_data output)
+                options_data = []
+                for row in rows:
+                    options_data.append({
+                        'symbol': row[1], 'timestamp': row[2], 'option_type': row[3],
+                        'expiration_date': row[4], 'strike_price': row[5], 'mark': row[6],
+                        'bid': row[7], 'ask': row[8], 'last': row[9], 'total_volume': row[10],
+                        'open_interest': row[11], 'delta': row[12], 'gamma': row[13],
+                        'theta': row[14], 'vega': row[15], 'rho': row[16],
+                        'implied_volatility': row[17], 'theoretical_value': row[18],
+                        'time_to_expiration': row[19], 'intrinsic_value': row[20],
+                        'extrinsic_value': row[21], 'underlying_price': row[22]
+                    })
+                
+                latest_timestamp = options_data[0]['timestamp'] if options_data else None
             
             # Calculate flow metrics with collection info
             result = self._calculate_flow_metrics(symbol, options_data, "latest")

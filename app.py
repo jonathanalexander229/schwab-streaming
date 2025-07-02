@@ -344,6 +344,12 @@ def chart_test():
     """Simple chart test page"""
     return render_template('chart_test.html')
 
+@app.route('/options-flow-chart')
+@require_auth
+def options_flow_chart():
+    """Options flow chart page (Phase 1)"""
+    return render_template('options_flow_chart.html')
+
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")
