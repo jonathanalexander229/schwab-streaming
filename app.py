@@ -345,6 +345,12 @@ def options_flow():
     """Options flow chart page (Premium Analysis)"""
     return render_template('options_flow.html')
 
+@app.route('/options-stats')
+@require_auth
+def options_stats():
+    """Options raw data statistics page"""
+    return render_template('options_stats.html')
+
 
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:

@@ -17,7 +17,7 @@ class OptionsFlowCalculator:
     
     def calculate_current_flow(self, symbol: str) -> Dict[str, Any]:
         """
-        Calculate options flow metrics using most recent data for a symbol
+        Get most recent flow metrics from aggregated data
         
         Args:
             symbol: Stock symbol to analyze
@@ -26,51 +26,61 @@ class OptionsFlowCalculator:
             Dictionary with flow metrics
         """
         try:
-            # Get latest data by finding max timestamp and getting those records
-            import sqlite3
-            with sqlite3.connect(self.database.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Get the latest timestamp for this symbol and all records with that timestamp
-                cursor.execute("""
-                    SELECT * FROM options_data 
-                    WHERE symbol = ? AND timestamp = (
-                        SELECT MAX(timestamp) FROM options_data WHERE symbol = ?
-                    )
-                """, (symbol, symbol))
-                
-                rows = cursor.fetchall()
-                if not rows:
-                    return self._empty_flow_result(symbol)
-                
-                # Convert to expected format (matching get_options_data output)
-                options_data = []
-                for row in rows:
-                    options_data.append({
-                        'symbol': row[1], 'timestamp': row[2], 'option_type': row[3],
-                        'expiration_date': row[4], 'strike_price': row[5], 'mark': row[6],
-                        'bid': row[7], 'ask': row[8], 'last': row[9], 'total_volume': row[10],
-                        'open_interest': row[11], 'delta': row[12], 'gamma': row[13],
-                        'theta': row[14], 'vega': row[15], 'rho': row[16],
-                        'implied_volatility': row[17], 'theoretical_value': row[18],
-                        'time_to_expiration': row[19], 'intrinsic_value': row[20],
-                        'extrinsic_value': row[21], 'underlying_price': row[22]
-                    })
-                
-                latest_timestamp = options_data[0]['timestamp'] if options_data else None
+            # Get the latest aggregated flow data (most recent entry)
+            end_time = int(datetime.now().timestamp() * 1000)
+            aggregations = self.database.get_flow_aggregations(symbol, 0, end_time, limit=1)
             
-            # Calculate flow metrics with collection info
-            result = self._calculate_flow_metrics(symbol, options_data, "latest")
+            if not aggregations:
+                return self._empty_flow_result(symbol)
             
-            # Add collection metadata
-            result['collection_timestamp'] = latest_timestamp
-            result['collection_time'] = datetime.fromtimestamp(latest_timestamp / 1000).strftime('%H:%M:%S')
-            result['unique_records'] = len(options_data)
+            # Use the latest aggregated data (should be the last entry)
+            latest_agg = aggregations[0]
+            
+            # Convert aggregation record to expected format
+            result = {
+                'symbol': symbol,
+                'timeframe': 'latest',
+                'timestamp': datetime.now().isoformat(),
+                
+                # Core flow metrics from aggregation
+                'call_delta_volume': latest_agg['call_delta_volume'],
+                'put_delta_volume': latest_agg['put_delta_volume'],
+                'net_delta_volume': latest_agg['net_delta_volume'],
+                'delta_ratio': latest_agg['delta_ratio'],
+                
+                # Volume metrics
+                'call_volume': latest_agg['call_volume'],
+                'put_volume': latest_agg['put_volume'],
+                'total_volume': latest_agg['total_volume'],
+                
+                # Open Interest metrics
+                'call_open_interest': latest_agg['call_open_interest'],
+                'put_open_interest': latest_agg['put_open_interest'],
+                'total_open_interest': latest_agg['total_open_interest'],
+                'put_call_oi_ratio': latest_agg['put_call_oi_ratio'],
+                
+                # Put/Call ratios
+                'put_call_ratio': latest_agg['put_call_ratio'],
+                
+                # Market context
+                'underlying_price': latest_agg['underlying_price'],
+                
+                # Sentiment analysis
+                'sentiment': latest_agg['sentiment'],
+                'sentiment_emoji': '🟢' if latest_agg['net_delta_volume'] > 0 else '🔴',
+                'sentiment_strength': latest_agg['sentiment_strength'],
+                
+                # Metadata
+                'total_records': latest_agg['total_records'],
+                'data_available': True,
+                'collection_timestamp': latest_agg['timestamp'],
+                'collection_time': datetime.fromtimestamp(latest_agg['timestamp'] / 1000).strftime('%H:%M:%S')
+            }
             
             return result
             
         except Exception as e:
-            logger.error(f"Error calculating flow for {symbol}: {e}")
+            logger.error(f"Error getting current flow for {symbol}: {e}")
             return self._empty_flow_result(symbol)
     
     def calculate_flow_for_timeframe(self, symbol: str, hours_back: int = 1) -> Dict[str, Any]:

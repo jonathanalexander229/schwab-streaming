@@ -279,3 +279,22 @@ def get_options_status():
     except Exception as e:
         logger.error(f"Error getting options status: {e}")
         return jsonify({'error': str(e)}), 500
+
+@options_bp.route('/stats')
+@require_auth
+def get_options_stats():
+    """Get options flow stats using delta-weighted volume calculation"""
+    try:
+        # Load watchlist symbols
+        symbols = load_watchlist_symbols()
+        if not symbols:
+            return jsonify({'error': 'No symbols found in watchlist'}), 404
+        
+        calculator = OptionsFlowCalculator()
+        flow_data = calculator.get_multi_symbol_flow(symbols)
+        
+        return jsonify(flow_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting options stats: {e}")
+        return jsonify({'error': str(e)}), 500

@@ -474,3 +474,28 @@ class OptionsDatabase:
             
             row = cursor.fetchone()
             return dict(row) if row else None
+    
+    def get_recent_options_data(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get most recent raw options data for a symbol
+        
+        Args:
+            symbol: Stock symbol
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of recent options data records
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT * FROM options_data
+                WHERE symbol = ?
+                ORDER BY timestamp DESC, strike_price ASC
+                LIMIT ?
+            """, (symbol, limit))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]

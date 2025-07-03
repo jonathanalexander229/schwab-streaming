@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Stats - Schwab Streaming</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
+        
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        
+        .stats-table { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f8f9fa; font-weight: bold; }
+        .symbol { font-weight: bold; }
+        .bullish { color: #28a745; }
+        .bearish { color: #dc3545; }
+        .no-data { color: #666; }
+        
+        .loading, .error { text-align: center; padding: 40px; }
+        .error { color: #dc3545; background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
+        <a href="{{ url_for('historical_charts') }}" class="nav-btn">📊 Historical Charts</a>
+        <a href="{{ url_for('live_charts') }}" class="nav-btn">📈 Live Charts</a>
+        <a href="{{ url_for('options_flow') }}" class="nav-btn">🎯 Options Flow</a>
+        <a href="{{ url_for('options_stats') }}" class="nav-btn active">📋 Options Stats</a>
+    </div>
+    
+    <h1>📋 Options Stats</h1>
+    
+    <div class="controls">
+        <button onclick="refreshData()">🔄 Refresh</button>
+        <span id="lastUpdate" style="margin-left: auto; color: #666; font-size: 0.9em;"></span>
+    </div>
+    
+    <div class="stats-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Sentiment</th>
+                    <th>Call Delta×Vol</th>
+                    <th>Put Delta×Vol</th>
+                    <th>Net Delta×Vol</th>
+                    <th>P/C Ratio</th>
+                    <th>Call OI</th>
+                    <th>Put OI</th>
+                    <th>Underlying</th>
+                </tr>
+            </thead>
+            <tbody id="statsTableBody">
+                <tr><td colspan="9" class="loading">Loading options stats...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        async function loadOptionsStats() {
+            try {
+                const response = await fetch('/api/options/stats');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const tbody = document.getElementById('statsTableBody');
+                
+                if (!data.symbols || Object.keys(data.symbols).length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No options data available</td></tr>';
+                    return;
+                }
+                
+                const rows = Object.entries(data.symbols).map(([symbol, stats]) => {
+                    const sentimentClass = stats.net_delta_volume >= 0 ? 'bullish' : 'bearish';
+                    
+                    return `
+                        <tr>
+                            <td class="symbol">${symbol}</td>
+                            <td>${stats.sentiment_emoji} ${stats.sentiment}</td>
+                            <td class="bullish">${Math.round(stats.call_delta_volume).toLocaleString()}</td>
+                            <td class="bearish">${Math.round(stats.put_delta_volume).toLocaleString()}</td>
+                            <td class="${sentimentClass}">${Math.round(stats.net_delta_volume).toLocaleString()}</td>
+                            <td>${stats.put_call_ratio.toFixed(2)}</td>
+                            <td class="bullish">${stats.call_open_interest.toLocaleString()}</td>
+                            <td class="bearish">${stats.put_open_interest.toLocaleString()}</td>
+                            <td>$${stats.underlying_price.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                tbody.innerHTML = rows;
+                
+                // Update timestamp
+                document.getElementById('lastUpdate').textContent = 
+                    `Last updated: ${new Date(data.timestamp).toLocaleTimeString()}`;
+                
+            } catch (error) {
+                console.error('Error loading options stats:', error);
+                const tbody = document.getElementById('statsTableBody');
+                tbody.innerHTML = `<tr><td colspan="9" class="error">Error: ${error.message}</td></tr>`;
+            }
+        }
+        
+        function refreshData() {
+            loadOptionsStats();
+        }
+        
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadOptionsStats);
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadOptionsStats, 30000);
+    </script>
+</body>
+</html>
