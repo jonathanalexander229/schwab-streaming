@@ -250,10 +250,11 @@ Examples:
             logger.info("🚀 Starting single collection...")
             
             if len(symbols) == 1:
-                result = collector.collect_options_chain(symbols[0], args.strikes)
+                result = collector.process_symbol(symbols[0], args.strikes)
                 print(f"\n✅ Collection Result for {symbols[0]}:")
                 print(f"Status: {result['status']}")
                 print(f"Aggregation stored: {result.get('aggregation_stored', False)}")
+                print(f"Raw records stored: {result.get('raw_records_stored', 0)}")
                 if result.get('call_delta_volume') is not None:
                     print(f"Call Δ×Volume: {result.get('call_delta_volume', 0):,.0f}")
                     print(f"Put Δ×Volume: {result.get('put_delta_volume', 0):,.0f}")
@@ -291,7 +292,7 @@ Examples:
                             try:
                                 time.sleep(wait_seconds)
                                 logger.info("⏰ Market opening! Resuming collection...")
-                                continue
+                                # Don't continue here - proceed to collection after wait
                             except KeyboardInterrupt:
                                 logger.info("⏹️ Wait interrupted by user")
                                 return 0
@@ -300,7 +301,7 @@ Examples:
                     logger.info(f"📊 Collection #{collection_count}")
                     
                     if len(symbols) == 1:
-                        result = collector.collect_options_chain(symbols[0], args.strikes)
+                        result = collector.process_symbol(symbols[0], args.strikes)
                         status = "✅ Aggregated" if result.get('aggregation_stored') else "❌ Failed"
                         logger.info(f"{status} {symbols[0]}: Delta×Vol stored")
                     else:
