@@ -97,7 +97,10 @@ class EquityStreamManager(StreamManager):
                 logger.info(f"Added {symbol} to mock equity stream")
             else:
                 # Real Schwab streamer - send level one equity subscription
-                subscription_msg = self.equity_processor.format_subscription_message([symbol])
+                subscription_msg_str = self.equity_processor.format_subscription_message([symbol])
+                # Parse JSON string back to dictionary for real streamer
+                import json
+                subscription_msg = json.loads(subscription_msg_str)
                 self.streamer.send(subscription_msg)
                 logger.info(f"Sent equity subscription for {symbol}")
                 

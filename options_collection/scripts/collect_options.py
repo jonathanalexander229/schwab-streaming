@@ -94,7 +94,7 @@ Examples:
   # Continuous collection every 30 seconds
   python -m options_collection.scripts.collect_options --continuous --interval 30
   
-  # Force collection outside market hours (for testing)
+  # Collect last available options data when market is closed
   python -m options_collection.scripts.collect_options --force-collect
   
   # Check collection status
@@ -131,7 +131,7 @@ Examples:
     parser.add_argument(
         '--force-collect',
         action='store_true',
-        help='Bypass market hours check and collect anyway (for testing)'
+        help='Collect last available options data even when market is closed'
     )
     
     parser.add_argument(
@@ -234,13 +234,14 @@ Examples:
                         return 0
                 else:
                     logger.info("📅 Market is closed. No collection will be performed.")
-                    logger.info("⚠️  Use --force-collect to collect anyway (data may be stale)")
+                    logger.info("⚠️  Use --force-collect to collect last available options data")
                     return 0
         
         if args.force_collect:
             any_trading = any(collector.is_trading_time(s) for s in symbols)
             if not any_trading:
-                logger.warning("⚠️ Collecting outside market hours - data may be stale!")
+                logger.info("📊 Collecting last available options data (market closed)")
+                logger.info("💡 Data represents most recent available quotes - duplicate checking prevents stale records")
         
         logger.info(f"🎯 Target symbols: {symbols}")
         logger.info(f"📈 Strike count: {args.strikes}")
@@ -260,7 +261,7 @@ Examples:
                     print(f"Put Δ×Volume: {result.get('put_delta_volume', 0):,.0f}")
                     print(f"Net Δ×Volume: {result.get('net_delta_volume', 0):,.0f}")
             else:
-                result = collector.collect_multiple_symbols(symbols, args.strikes)
+                result = collector.collect_multiple_symbols(symbols, args.strikes, args.force_collect)
                 print(f"\n✅ Collection Summary:")
                 print(f"Symbols processed: {result['total_symbols']}")
                 print(f"Aggregations stored: {result.get('total_aggregations_stored', 0)}/{result['total_symbols']}")
@@ -305,7 +306,7 @@ Examples:
                         status = "✅ Aggregated" if result.get('aggregation_stored') else "❌ Failed"
                         logger.info(f"{status} {symbols[0]}: Delta×Vol stored")
                     else:
-                        result = collector.collect_multiple_symbols(symbols, args.strikes)
+                        result = collector.collect_multiple_symbols(symbols, args.strikes, args.force_collect)
                         total_agg = result.get('total_aggregations_stored', 0)
                         logger.info(f"✅ Total: {total_agg}/{len(symbols)} aggregations stored")
                     

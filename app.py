@@ -355,8 +355,9 @@ def options_stats():
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")
-    from features.market_data_routes import market_data_bp
+    from features.market_data_routes import market_data_bp, register_socketio_handlers
     app.register_blueprint(market_data_bp)
+    register_socketio_handlers(socketio)
     logger.info("✅ Market data routes registered")
 else:
     logger.info("Market data feature disabled")

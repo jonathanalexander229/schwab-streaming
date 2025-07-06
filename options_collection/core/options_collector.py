@@ -416,17 +416,22 @@ class OptionsCollector:
             'underlying_price': metrics['underlying_price']
         }
     
-    def collect_multiple_symbols(self, symbols: List[str], strike_count: int = 20) -> Dict[str, Any]:
+    def collect_multiple_symbols(self, symbols: List[str], strike_count: int = 20, force_collect: bool = False) -> Dict[str, Any]:
         """
         Process options for multiple symbols with rate limiting
+        
+        Args:
+            symbols: List of stock symbols to process
+            strike_count: Number of strikes to collect per side
+            force_collect: If True, bypass market hours check for individual symbols
         """
         results = []
         total_aggregations = 0
         total_raw_records = 0
         
         for i, symbol in enumerate(symbols):
-            # Check trading hours for this specific symbol
-            if not self.is_trading_time(symbol):
+            # Check trading hours for this specific symbol (unless force_collect is True)
+            if not force_collect and not self.is_trading_time(symbol):
                 logger.info(f"⏰ Skipping {symbol} - outside trading hours")
                 results.append({
                     'symbol': symbol,

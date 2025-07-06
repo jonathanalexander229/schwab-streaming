@@ -137,6 +137,7 @@ class MarketDataManager:
     def add_symbol(self, symbol: str) -> bool:
         """Add symbol to watchlist and subscribe to streaming"""
         symbol = symbol.upper().strip()
+        
         if symbol in self.watchlist:
             return False
         
