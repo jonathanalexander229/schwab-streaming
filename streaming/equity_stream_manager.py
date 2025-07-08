@@ -63,6 +63,18 @@ class EquityStreamManager(StreamManager):
         success = self.remove_subscription(symbol)
         
         if success:
+            # Send unsubscribe message to streamer
+            try:
+                if hasattr(self.streamer, 'add_symbol'):
+                    # Mock streamer - no special handling needed
+                    pass
+                else:
+                    # Real Schwab streamer - send UNSUBS command
+                    self.streamer.send(self.streamer.level_one_equities(symbol, "0,1,2,3,4,5,6,8,10,11,12,17,18,42", command="UNSUBS"))
+                    logger.info(f"Sent equity unsubscription for {symbol}")
+            except Exception as e:
+                logger.error(f"Error unsubscribing from equity {symbol}: {e}")
+                
             logger.info(f"Removed equity subscription for {symbol}")
             
         return success
@@ -74,6 +86,43 @@ class EquityStreamManager(StreamManager):
     def get_market_status(self) -> Dict[str, Any]:
         """Get current equity market status"""
         return self.equity_processor.get_market_status()
+    
+    def clear_and_resubscribe_all(self) -> bool:
+        """Clear all existing subscriptions and resubscribe to watchlist"""
+        try:
+            if hasattr(self.streamer, 'add_symbol'):
+                # Mock streamer - just clear and resubscribe
+                logger.info("Mock mode - clearing and resubscribing all symbols")
+                subscribed_symbols = list(self.get_subscriptions())
+                self.clear_subscriptions()
+                for symbol in subscribed_symbols:
+                    self.add_equity_subscription(symbol)
+            else:
+                # Real Schwab streamer - send VIEW command to clear all subscriptions
+                logger.info("Clearing all existing subscriptions...")
+                self.streamer.send(self.streamer.level_one_equities("", "", command="VIEW"))
+                
+                # Get subscribed symbols before clearing
+                subscribed_symbols = list(self.get_subscriptions())
+                self.clear_subscriptions()
+                
+                # Subscribe to all symbols at once using comma-separated string
+                if subscribed_symbols:
+                    symbols_str = ",".join(subscribed_symbols)
+                    logger.info(f"Subscribing to all symbols at once: {symbols_str}")
+                    self.streamer.send(self.streamer.level_one_equities(symbols_str, "0,1,2,3,4,5,6,8,10,11,12,17,18,42"))
+                    
+                    # Add all symbols back to subscription manager
+                    for symbol in subscribed_symbols:
+                        self.add_subscription(symbol)
+                    
+                    logger.info(f"Subscribed to {len(subscribed_symbols)} symbols in single request")
+                
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error clearing and resubscribing: {e}")
+            return False
         
     def _process_equity_message(self, message_data: Dict[str, Any]):
         """Process incoming message through equity processor"""
@@ -97,11 +146,7 @@ class EquityStreamManager(StreamManager):
                 logger.info(f"Added {symbol} to mock equity stream")
             else:
                 # Real Schwab streamer - send level one equity subscription
-                subscription_msg_str = self.equity_processor.format_subscription_message([symbol])
-                # Parse JSON string back to dictionary for real streamer
-                import json
-                subscription_msg = json.loads(subscription_msg_str)
-                self.streamer.send(subscription_msg)
+                self.streamer.send(self.streamer.level_one_equities(symbol, "0,1,2,3,4,5,6,8,10,11,12,17,18,42"))
                 logger.info(f"Sent equity subscription for {symbol}")
                 
         except Exception as e:

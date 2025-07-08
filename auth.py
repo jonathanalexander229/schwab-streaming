@@ -5,6 +5,18 @@ import schwabdev
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, request
 
+def _cleanup_invalid_tokens():
+    """Remove invalid tokens file when refresh token expires."""
+    tokens_file = "tokens.json"
+    if os.path.exists(tokens_file):
+        try:
+            os.remove(tokens_file)
+            print(f"🗑️ Removed invalid tokens file: {tokens_file}")
+        except Exception as e:
+            print(f"❌ Failed to remove tokens file: {e}")
+    else:
+        print("📄 No tokens file found to clean up")
+
 def get_schwab_client():
     """
     Initialize and return a real Schwab client for API access.
@@ -30,7 +42,15 @@ def get_schwab_client():
         return client
         
     except Exception as e:
-        print(f"❌ Failed to connect to Schwab API: {e}")
+        error_msg = str(e)
+        print(f"❌ Failed to connect to Schwab API: {error_msg}")
+        
+        # Check for refresh token authentication error
+        if "refresh_token_authentication_error" in error_msg or "Failed refresh token authentication" in error_msg:
+            print("🧹 Refresh token expired - cleaning up tokens...")
+            _cleanup_invalid_tokens()
+            print("🔄 Please re-authenticate by visiting /login")
+        
         return None
 
 def get_schwab_streamer():

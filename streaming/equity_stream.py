@@ -22,6 +22,7 @@ class EquityStreamProcessor:
         "last_price": "3",         # Field 3: Last Price
         "bid_size": "4",           # Field 4: Bid Size
         "ask_size": "5",           # Field 5: Ask Size
+        "mark_price": "6",         # Field 6: Mark Price
         "volume": "8",             # Field 8: Total Volume
         "high_price": "10",        # Field 10: High Price
         "low_price": "11",         # Field 11: Low Price
@@ -133,6 +134,9 @@ class EquityStreamProcessor:
     
     def _extract_equity_fields(self, symbol: str, content: Dict[str, Any], timestamp: int) -> Dict[str, Any]:
         """Extract equity fields from Schwab content using field mappings"""
+        # Debug logging to see what fields are available
+        logger.debug(f"Raw content for {symbol}: {content}")
+        
         return {
             'symbol': symbol,
             'last_price': self._safe_float(content.get(self.EQUITY_FIELDS["last_price"])),
