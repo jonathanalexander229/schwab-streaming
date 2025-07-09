@@ -431,30 +431,56 @@
                 document.getElementById('current-symbol').textContent = symbol;
                 document.getElementById('underlying-price-label').textContent = symbol;
                 
-                // Build URL with date parameter if selected, otherwise use today's data
-                let url = `/api/options/chart-agg/${symbol}?limit=1000`;
+                let result = null;
+                let dataFound = false;
+                
+                // First try: Use selected date if provided
                 if (selectedDate) {
-                    url += `&date=${selectedDate}`;
-                } else {
-                    url += `&hours=24`; // Default to today
+                    const dateUrl = `/api/options/chart-agg/${symbol}?limit=1000&date=${selectedDate}`;
+                    const response = await fetch(dateUrl);
+                    
+                    if (response.ok) {
+                        result = await response.json();
+                        if (result.data && result.data.length > 0) {
+                            dataFound = true;
+                        }
+                    }
                 }
                 
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Second try: If no date selected or no data found for selected date, use hours=24 (recent data)
+                if (!dataFound) {
+                    const hoursUrl = `/api/options/chart-agg/${symbol}?limit=1000&hours=24`;
+                    const response = await fetch(hoursUrl);
+                    
+                    if (response.ok) {
+                        result = await response.json();
+                        if (result.data && result.data.length > 0) {
+                            dataFound = true;
+                        }
+                    }
                 }
                 
-                const result = await response.json();
+                // Third try: If still no data, try a longer time range (48 hours)
+                if (!dataFound) {
+                    const longerUrl = `/api/options/chart-agg/${symbol}?limit=1000&hours=48`;
+                    const response = await fetch(longerUrl);
+                    
+                    if (response.ok) {
+                        result = await response.json();
+                        if (result.data && result.data.length > 0) {
+                            dataFound = true;
+                        }
+                    }
+                }
                 
-                if (result.error) {
+                if (result && result.error) {
                     throw new Error(result.error);
                 }
 
                 // Hide loading
                 document.getElementById('loading').style.display = 'none';
                 
-                if (!result.data || result.data.length === 0) {
+                if (!dataFound || !result || !result.data || result.data.length === 0) {
                     document.getElementById('error').style.display = 'block';
                     document.getElementById('error').textContent = 'No aggregated data available. Try collecting some options data first.';
                     return;
@@ -492,7 +518,24 @@
                 // Fit chart to data
                 chart.timeScale().fitContent();
                 
-                const dateDisplay = selectedDate || 'Today';
+                // Show which data was loaded and update date picker
+                let dateDisplay = 'Recent Data';
+                if (selectedDate && dataFound) {
+                    dateDisplay = selectedDate;
+                } else if (result.data && result.data.length > 0) {
+                    // Show the date range of the loaded data
+                    const firstPoint = result.data[0];
+                    const lastPoint = result.data[result.data.length - 1];
+                    const startDate = new Date(firstPoint.timestamp).toLocaleDateString();
+                    const endDate = new Date(lastPoint.timestamp).toLocaleDateString();
+                    dateDisplay = startDate === endDate ? startDate : `${startDate} to ${endDate}`;
+                    
+                    // Update the date picker to show the most recent date from the data
+                    // Use the last point's date (most recent data point)
+                    const mostRecentDate = new Date(lastPoint.timestamp);
+                    const dateString = mostRecentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                    document.getElementById('date-select').value = dateString;
+                }
                 console.log(`Loaded ${result.data.length} aggregated data points for ${symbol} (${dateDisplay}) - Cumulative Flow Analysis`);
                 
             } catch (error) {
@@ -503,11 +546,8 @@
             }
         }
 
-        // Set default date to today and initialize symbol label
-        function setDefaultDate() {
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-            document.getElementById('date-select').value = today;
-            
+        // Initialize symbol label (don't set default date - let system find most recent data)
+        function initializeLabels() {
             // Initialize the underlying price label with current symbol
             const currentSymbol = document.getElementById('symbol-select').value;
             document.getElementById('underlying-price-label').textContent = currentSymbol;
@@ -519,7 +559,7 @@
 
         // Initialize
         window.addEventListener('load', () => {
-            setDefaultDate();
+            initializeLabels();
             if (initChart()) {
                 loadChartData();
             }

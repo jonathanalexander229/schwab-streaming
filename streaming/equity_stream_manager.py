@@ -128,11 +128,12 @@ class EquityStreamManager(StreamManager):
         """Process incoming message through equity processor"""
         try:
             # Use equity processor to extract standardized data
-            equity_data = self.equity_processor.process_message(message_data)
+            equity_data_list = self.equity_processor.process_message(message_data)
             
-            if equity_data and self.equity_data_handler:
-                # Pass processed equity data to the handler
-                self.equity_data_handler(equity_data)
+            if equity_data_list and self.equity_data_handler:
+                # Pass each processed equity data item to the handler
+                for equity_data in equity_data_list:
+                    self.equity_data_handler(equity_data)
                 
         except Exception as e:
             logger.error(f"Error processing equity message: {e}")

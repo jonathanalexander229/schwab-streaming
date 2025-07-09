@@ -81,7 +81,7 @@ class EquityStreamProcessor:
         import json
         return json.dumps(subscription)
     
-    def process_message(self, message_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def process_message(self, message_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Process equity streaming message and extract standardized data
         
@@ -89,29 +89,31 @@ class EquityStreamProcessor:
             message_data: Raw message data from Schwab WebSocket
             
         Returns:
-            Standardized equity data dict or None if not processable
+            List of standardized equity data dicts
         """
         try:
+            results = []
             if not message_data.get("data"):
-                return None
+                return results
                 
             for data_item in message_data["data"]:
                 if data_item.get("service") == "LEVELONE_EQUITIES":
-                    return self._process_equity_data(data_item)
+                    results.extend(self._process_equity_data(data_item))
                     
-            return None
+            return results
             
         except Exception as e:
             logger.error(f"Error processing equity message: {e}")
-            return None
+            return []
     
-    def _process_equity_data(self, data_item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Process individual equity data item"""
+    def _process_equity_data(self, data_item: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Process individual equity data item and return all valid symbols"""
         try:
             timestamp = data_item.get("timestamp", int(time.time() * 1000))
+            results = []
             
             if not data_item.get("content"):
-                return None
+                return results
                 
             for content in data_item["content"]:
                 symbol = content.get("key")
@@ -124,18 +126,18 @@ class EquityStreamProcessor:
                 equity_data = self._extract_equity_fields(symbol, content, timestamp)
                 
                 if equity_data and self._validate_equity_data(equity_data):
-                    return equity_data
+                    results.append(equity_data)
                     
-            return None
+            return results
             
         except Exception as e:
             logger.error(f"Error processing equity data item: {e}")
-            return None
+            return []
     
     def _extract_equity_fields(self, symbol: str, content: Dict[str, Any], timestamp: int) -> Dict[str, Any]:
         """Extract equity fields from Schwab content using field mappings"""
         # Debug logging to see what fields are available
-        logger.debug(f"Raw content for {symbol}: {content}")
+        logger.info(f"Raw content for {symbol}: {content}")
         
         return {
             'symbol': symbol,
@@ -159,11 +161,23 @@ class EquityStreamProcessor:
             if not equity_data.get('symbol'):
                 return False
                 
-            # Basic price validation
-            last_price = equity_data.get('last_price')
-            if last_price is not None and last_price <= 0:
-                logger.warning(f"Invalid last price for {equity_data['symbol']}: {last_price}")
+            # Check that at least one price field is present
+            has_price_data = any([
+                equity_data.get('last_price') is not None,
+                equity_data.get('bid_price') is not None,
+                equity_data.get('ask_price') is not None
+            ])
+            
+            if not has_price_data:
+                logger.debug(f"No price data for {equity_data['symbol']}, skipping")
                 return False
+                
+            # Basic price validation for non-None values
+            for price_field in ['last_price', 'bid_price', 'ask_price', 'high_price', 'low_price']:
+                price = equity_data.get(price_field)
+                if price is not None and price <= 0:
+                    logger.warning(f"Invalid {price_field} for {equity_data['symbol']}: {price}")
+                    return False
                 
             # Volume validation
             volume = equity_data.get('volume')
