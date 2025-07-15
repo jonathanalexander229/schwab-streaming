@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Reference
+
+For comprehensive project information, architecture details, and usage instructions, see **README.md**. This file focuses on development-specific guidance and recent improvements.
+
 ## Common Development Commands
 
 ### Running the Application
@@ -157,14 +161,42 @@ Real-time updates are pushed via Socket.IO:
 - `GET /api/watchlist`, `POST /api/watchlist`, `DELETE /api/watchlist`
 - `GET /api/market-data`, `GET /api/auth-status`, `GET /api/session-info`
 
+#### Streaming Control (NEW)
+- `POST /api/streaming/start` - Start market data streaming
+- `POST /api/streaming/stop` - Stop market data streaming
+- `GET /api/streaming/status` - Get current streaming status
+
 #### Historical Data  
 - `GET /api/historical-data/<symbol>?timeframe=1m&range=1d`
 - `GET /api/test-data` (database stats)
 
 #### Options Flow
+- `GET /api/options/symbols` - Fast symbol list (no stats) - **PERFORMANCE OPTIMIZED**
+- `GET /api/options/status` - Full status with stats (admin/debug only)
+- `GET /api/options/chart-agg/<symbol>` - Chart data with fallback logic
 - `GET /api/options/flow` (all symbols)
 - `GET /api/options/flow/<symbol>` (specific symbol)  
 - `GET /api/options/flow/<symbol>/history?hours=24`
+
+## Recent Improvements & Best Practices
+
+### Performance Optimizations (Latest)
+- **Options Flow Loading**: Created `/api/options/symbols` for fast dropdown loading (no expensive stats)
+- **Chart Data Fallback**: Smart date fallback logic (24h → 48h → longer ranges)
+- **SPY Default**: Auto-loads SPY data immediately while symbols load
+- **Page Visibility**: Auto-pause updates when page is hidden
+
+### Streaming Control Features (Latest)
+- **Manual Control**: Start/Stop streaming buttons with REST API endpoints
+- **Resource Management**: Stop streaming to save bandwidth and API calls  
+- **Status Tracking**: Real-time streaming status with UI indicators
+- **Default Enabled**: Streaming starts automatically but can be controlled
+
+### Performance Guidelines
+- **Use `/api/options/symbols` for UI dropdowns** (fast, no stats)
+- **Use `/api/options/status` only for debugging** (slow, full stats)
+- **Always implement date fallback logic** for chart data
+- **Consider page visibility for auto-updates**
 
 ### Important Implementation Notes
 

@@ -69,6 +69,13 @@ A modular Flask-based web application for streaming market data from Charles Sch
 2. Click "Add to Watchlist" 
 3. Real-time quotes will appear automatically
 
+#### Streaming Control
+
+- **Start/Stop Buttons**: Manual control over market data streaming
+- **Default**: Streaming enabled by default on page load
+- **Resource Management**: Stop streaming to save bandwidth and API calls
+- **Status Indicator**: Shows current streaming state (Active/Stopped)
+
 #### Live Charts
 
 - Navigate to **Live Charts** page
@@ -142,10 +149,12 @@ python -m options_collection.scripts.collect_options --status
 #### Options Flow Dashboard
 
 - Navigate to **Options Flow** page
-- View real-time delta-weighted volume analysis
-- Monitor Put/Call ratios and Open Interest metrics
-- Track market sentiment across watchlist symbols
-- Automatic refresh every 30 seconds
+- **Fast Symbol Loading**: Optimized dropdown with instant symbol list
+- **Default SPY Display**: Shows SPY data immediately with most recent date
+- **Interactive Charts**: Real-time delta-weighted volume analysis
+- **Auto-Update**: Configurable refresh intervals (15s, 30s, 45s, 60s)
+- **Page Visibility Control**: Auto-pause when page is hidden to save resources
+- **Date Selection**: View specific dates or recent data automatically
 
 **Flow Metrics:**
 - **Call Δ×Vol**: Delta-weighted call volume (bullish flow)
@@ -391,6 +400,12 @@ Tests include:
 - `GET /api/session-info` - Get session information
 - `POST /api/mock-speed` - Set mock data update speed
 
+### Streaming Control
+
+- `POST /api/streaming/start` - Start market data streaming
+- `POST /api/streaming/stop` - Stop market data streaming  
+- `GET /api/streaming/status` - Get streaming status
+
 ### Historical Data
 
 - `GET /api/historical-data/<symbol>` - Get historical OHLC data
@@ -401,12 +416,18 @@ Tests include:
 
 ### Options Flow
 
+- `GET /api/options/symbols` - Get symbol list for dropdown (fast, no stats)
 - `GET /api/options/flow` - Get options flow data for all watchlist symbols
 - `GET /api/options/flow/<symbol>` - Get options flow data for specific symbol
 - `GET /api/options/flow/<symbol>/history` - Get longer-term flow data for symbol
   - Query parameters:
     - `hours`: Hours back to analyze (default: 1)
-- `GET /api/options/status` - Get options data collection status
+- `GET /api/options/chart-agg/<symbol>` - Get aggregated chart data for symbol
+  - Query parameters:
+    - `limit`: Maximum records to return (default: 1000)
+    - `hours`: Hours back to query (default: 24)
+    - `date`: Specific date (YYYY-MM-DD format)
+- `GET /api/options/status` - Get options data collection status (admin/debug only)
 
 ### Testing (Mock Mode Only)
 
