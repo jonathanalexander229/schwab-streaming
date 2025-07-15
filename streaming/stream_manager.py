@@ -3,7 +3,6 @@ import logging
 import threading
 from typing import Optional, Callable, Dict, Any
 from .subscription_manager import SubscriptionManager
-from .equity_stream import EquityStreamProcessor
 
 logger = logging.getLogger(__name__)
 

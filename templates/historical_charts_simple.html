@@ -3,9 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
     <title>Historical Charts - Schwab Streaming</title>
     <style>
         body { margin: 20px; font-family: Arial, sans-serif; }
@@ -31,11 +28,9 @@
 </head>
 <body>
     <div class="nav-buttons">
-        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
-        <a href="{{ url_for('historical_charts') }}" class="nav-btn active">📊 Historical Charts</a>
-        <a href="{{ url_for('live_charts') }}" class="nav-btn">📈 Live Charts</a>
-        <a href="{{ url_for('options_flow') }}" class="nav-btn">🎯 Options Flow</a>
-        <a href="{{ url_for('chart_test') }}" class="nav-btn">🔬 Chart Test</a>
+        <a href="/" class="nav-btn">🏠 Home</a>
+        <a href="/historical-charts" class="nav-btn active">📊 Historical Charts</a>
+        <a href="/chart-test" class="nav-btn">🧪 Test Page</a>
     </div>
     
     <h1>📈 Historical Data Charts</h1>
@@ -104,11 +99,17 @@
         let candlestickSeries = null;
         let volumeSeries = null;
         
+        function log(message) {
+            console.log(message);
+        }
+        
         function initChart() {
+            log('Initializing chart...');
             const container = document.getElementById('chartContainer');
             container.innerHTML = '';
             
             if (typeof LightweightCharts === 'undefined') {
+                log('ERROR: LightweightCharts not loaded');
                 container.innerHTML = '<div class="error">LightweightCharts library not loaded</div>';
                 return false;
             }
@@ -148,20 +149,25 @@
                     }
                 });
                 
+                log('Chart initialized successfully');
                 return true;
             } catch (error) {
+                log('ERROR initializing chart: ' + error.message);
                 container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
                 return false;
             }
         }
         
         async function testAPI() {
+            log('Testing API...');
             try {
                 const response = await fetch('/api/test-data');
                 const data = await response.json();
+                log('API test successful');
                 alert('API test successful! Check console for details.');
                 console.log('API data:', data);
             } catch (error) {
+                log('API test error: ' + error.message);
                 alert('API test failed: ' + error.message);
             }
         }
@@ -176,18 +182,24 @@
                 return;
             }
             
+            log('Loading chart for ' + symbol);
+            
             const container = document.getElementById('chartContainer');
             container.innerHTML = '<div class="loading">Loading data...</div>';
             
             try {
                 const url = `/api/historical-data/${symbol}?timeframe=${timeframe}&range=${range}`;
+                log('Fetching: ' + url);
+                
                 const response = await fetch(url);
+                log('Response status: ' + response.status);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
+                log('Received ' + (data.data ? data.data.length : 0) + ' data points');
                 
                 if (data.error) {
                     throw new Error(data.error);
@@ -217,6 +229,7 @@
                     color: parseFloat(item.close_price) >= parseFloat(item.open_price) ? '#26a69a' : '#ef5350',
                 }));
                 
+                log('Setting chart data...');
                 candlestickSeries.setData(candleData);
                 volumeSeries.setData(volumeData);
                 chart.timeScale().fitContent();
@@ -224,7 +237,10 @@
                 updateChartTitle(symbol, `${data.data.length} candles`);
                 updateChartInfo(data);
                 
+                log('Chart loaded successfully!');
+                
             } catch (error) {
+                log('ERROR loading chart: ' + error.message);
                 container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
                 updateChartTitle(symbol, 'Error');
             }
@@ -250,12 +266,16 @@
         
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, setting up event listeners...');
+            
             const symbolSelect = document.getElementById('symbolSelect');
             const loadButton = document.getElementById('loadChart');
             
             symbolSelect.addEventListener('change', () => {
                 loadButton.disabled = !symbolSelect.value;
             });
+            
+            log('Event listeners set up successfully');
         });
     </script>
 </body>

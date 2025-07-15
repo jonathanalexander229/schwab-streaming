@@ -50,10 +50,8 @@ class MarketDataManager:
         
         if is_mock_mode:
             db_filename = os.path.join(self.data_dir, f'MOCK_market_data_{today_date}.db')
-            logger.info(f"Using MOCK database: {db_filename}")
         else:
             db_filename = os.path.join(self.data_dir, f'market_data_{today_date}.db')
-            logger.info(f"Using REAL database: {db_filename}")
         
         conn = sqlite3.connect(db_filename)
         cursor = conn.cursor()
@@ -137,6 +135,7 @@ class MarketDataManager:
     def add_symbol(self, symbol: str) -> bool:
         """Add symbol to watchlist and subscribe to streaming"""
         symbol = symbol.upper().strip()
+        
         if symbol in self.watchlist:
             return False
         
@@ -234,20 +233,40 @@ class MarketDataManager:
             return False
         
         try:
-            # Subscribe to all watchlist symbols
-            if self.watchlist:
-                for symbol in self.watchlist:
-                    self.equity_stream_manager.add_equity_subscription(symbol)
-                    time.sleep(0.1)  # Rate limit protection
+            # Clear any existing subscriptions first, then resubscribe
+            logger.info("Clearing any existing subscriptions...")
+            if hasattr(self.equity_stream_manager, 'clear_and_resubscribe_all'):
+                # If we have symbols, clear and resubscribe
+                if self.watchlist:
+                    # Add symbols to subscription manager first
+                    for symbol in self.watchlist:
+                        self.equity_stream_manager.add_subscription(symbol)
                     
-                logger.info(f"Subscribed to {len(self.watchlist)} symbols: {', '.join(list(self.watchlist))}")
+                    # Now clear server subscriptions and resubscribe
+                    self.equity_stream_manager.clear_and_resubscribe_all()
+                    logger.info(f"Cleared and resubscribed to {len(self.watchlist)} symbols: {', '.join(list(self.watchlist))}")
+                else:
+                    # Subscribe to default symbol if no watchlist
+                    default_symbol = "SPY"
+                    self.equity_stream_manager.add_equity_subscription(default_symbol)
+                    self.watchlist.add(default_symbol)
+                    self.save_watchlist()
+                    logger.info(f"Subscribed to default symbol: {default_symbol}")
             else:
-                # Subscribe to default symbol if no watchlist
-                default_symbol = "SPY"
-                self.equity_stream_manager.add_equity_subscription(default_symbol)
-                self.watchlist.add(default_symbol)
-                self.save_watchlist()
-                logger.info(f"Subscribed to default symbol: {default_symbol}")
+                # Fallback to old method
+                if self.watchlist:
+                    for symbol in self.watchlist:
+                        self.equity_stream_manager.add_equity_subscription(symbol)
+                        time.sleep(0.1)  # Rate limit protection
+                        
+                    logger.info(f"Subscribed to {len(self.watchlist)} symbols: {', '.join(list(self.watchlist))}")
+                else:
+                    # Subscribe to default symbol if no watchlist
+                    default_symbol = "SPY"
+                    self.equity_stream_manager.add_equity_subscription(default_symbol)
+                    self.watchlist.add(default_symbol)
+                    self.save_watchlist()
+                    logger.info(f"Subscribed to default symbol: {default_symbol}")
             
             return True
             

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chart Test</title>
+    <style>
+        body { margin: 20px; font-family: Arial, sans-serif; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: 20px; }
+        .nav-btn { padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px; }
+        .nav-btn:hover { background: #545b62; text-decoration: none; color: white; }
+        .nav-btn.active { background: #007bff; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        #chartContainer { border: 1px solid #ddd; height: 400px; }
+        .error { color: red; padding: 20px; text-align: center; }
+        .loading { color: #666; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="nav-buttons">
+        <a href="{{ url_for('index') }}" class="nav-btn">🏠 Home</a>
+        <a href="{{ url_for('historical_charts') }}" class="nav-btn">📊 Historical Charts</a>
+        <a href="{{ url_for('live_charts') }}" class="nav-btn">📈 Live Charts</a>
+        <a href="{{ url_for('options_flow') }}" class="nav-btn">🎯 Options Flow</a>
+        <a href="{{ url_for('chart_test') }}" class="nav-btn active">🔬 Chart Test</a>
+    </div>
+    
+    <h1>Historical Chart Test</h1>
+    
+    <div class="controls">
+        <select id="symbolSelect">
+            <option value="">Select Symbol...</option>
+            <option value="SPY">SPY</option>
+            <option value="TSLA">TSLA</option>
+            <option value="GOOGL">GOOGL</option>
+        </select>
+        <button id="loadChart" onclick="loadChart()">Load Chart</button>
+        <button onclick="testAPI()">Test API</button>
+    </div>
+    
+    <div id="chartContainer">
+        <div class="loading">Select a symbol and click Load Chart</div>
+    </div>
+    
+    <div id="debug" style="margin-top: 20px; padding: 10px; background: #f5f5f5; font-family: monospace; font-size: 12px;"></div>
+
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+    
+    <script>
+        let chart = null;
+        let candlestickSeries = null;
+        let volumeSeries = null;
+        
+        function log(message) {
+            console.log(message);
+            const debug = document.getElementById('debug');
+            debug.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            debug.scrollTop = debug.scrollHeight;
+        }
+        
+        function initChart() {
+            log('Initializing chart...');
+            const container = document.getElementById('chartContainer');
+            container.innerHTML = '';
+            
+            if (typeof LightweightCharts === 'undefined') {
+                log('ERROR: LightweightCharts not loaded');
+                container.innerHTML = '<div class="error">LightweightCharts library not loaded</div>';
+                return false;
+            }
+            
+            try {
+                chart = LightweightCharts.createChart(container, {
+                    width: container.clientWidth,
+                    height: 400,
+                    layout: { background: { color: '#ffffff' }, textColor: '#333' },
+                    grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+                    rightPriceScale: { borderColor: '#cccccc' },
+                    timeScale: { borderColor: '#cccccc', timeVisible: true, secondsVisible: false },
+                    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                });
+                
+                candlestickSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderVisible: false,
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                });
+                
+                volumeSeries = chart.addHistogramSeries({
+                    color: '#26a69a',
+                    priceFormat: { type: 'volume' },
+                    priceScaleId: '',
+                });
+                
+                chart.priceScale('').applyOptions({
+                    scaleMargins: { top: 0.8, bottom: 0 },
+                });
+                
+                log('Chart initialized successfully');
+                return true;
+            } catch (error) {
+                log('ERROR initializing chart: ' + error.message);
+                container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                return false;
+            }
+        }
+        
+        async function testAPI() {
+            log('Testing API...');
+            try {
+                const response = await fetch('/api/test-data');
+                const data = await response.json();
+                log('API test successful: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('API test error: ' + error.message);
+            }
+        }
+        
+        async function loadChart() {
+            const symbol = document.getElementById('symbolSelect').value;
+            if (!symbol) {
+                alert('Please select a symbol');
+                return;
+            }
+            
+            log('Loading chart for ' + symbol);
+            
+            if (!chart) {
+                if (!initChart()) return;
+            }
+            
+            const container = document.getElementById('chartContainer');
+            container.innerHTML = '<div class="loading">Loading data...</div>';
+            
+            try {
+                const url = `/api/historical-data/${symbol}?timeframe=1m&range=1w`;
+                log('Fetching: ' + url);
+                
+                const response = await fetch(url);
+                log('Response status: ' + response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log('Received ' + (data.data ? data.data.length : 0) + ' data points');
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.data || data.data.length === 0) {
+                    container.innerHTML = '<div class="error">No data available</div>';
+                    return;
+                }
+                
+                // Reinitialize chart
+                if (!initChart()) return;
+                
+                // Prepare data
+                const candleData = data.data.map(item => ({
+                    time: item.timestamp,
+                    open: parseFloat(item.open_price),
+                    high: parseFloat(item.high_price),
+                    low: parseFloat(item.low_price),
+                    close: parseFloat(item.close_price),
+                }));
+                
+                const volumeData = data.data.map(item => ({
+                    time: item.timestamp,
+                    value: parseFloat(item.volume),
+                    color: parseFloat(item.close_price) >= parseFloat(item.open_price) ? '#26a69a' : '#ef5350',
+                }));
+                
+                log('Setting chart data...');
+                candlestickSeries.setData(candleData);
+                volumeSeries.setData(volumeData);
+                chart.timeScale().fitContent();
+                
+                log('Chart loaded successfully!');
+                
+            } catch (error) {
+                log('ERROR loading chart: ' + error.message);
+                container.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+            }
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Page loaded, ready to test');
+        });
+    </script>
+</body>
+</html>

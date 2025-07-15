@@ -52,7 +52,7 @@ def load_watchlist_symbols(watchlist_path: str = 'watchlist.json') -> list:
         return []
 
 def calculate_time_until_market_open(collector):
-    """Calculate seconds until market opens (with 1 minute buffer)"""
+    """Calculate seconds until market opens"""
     import pytz
     
     now_et = datetime.now(collector.ET)
@@ -64,9 +64,9 @@ def calculate_time_until_market_open(collector):
     else:
         next_market_day = now_et
     
-    # Set to 9:29 AM ET (1 minute before market open)
+    # Set to 9:30 AM ET (actual market open time, matching is_trading_time logic)
     market_open_time = next_market_day.replace(
-        hour=9, minute=29, second=0, microsecond=0
+        hour=collector.MARKET_OPEN[0], minute=collector.MARKET_OPEN[1], second=0, microsecond=0
     )
     
     # If we're past market open time today, move to next business day
@@ -94,7 +94,7 @@ Examples:
   # Continuous collection every 30 seconds
   python -m options_collection.scripts.collect_options --continuous --interval 30
   
-  # Force collection outside market hours (for testing)
+  # Collect last available options data when market is closed
   python -m options_collection.scripts.collect_options --force-collect
   
   # Check collection status
@@ -131,7 +131,7 @@ Examples:
     parser.add_argument(
         '--force-collect',
         action='store_true',
-        help='Bypass market hours check and collect anyway (for testing)'
+        help='Collect last available options data even when market is closed'
     )
     
     parser.add_argument(
@@ -234,13 +234,14 @@ Examples:
                         return 0
                 else:
                     logger.info("📅 Market is closed. No collection will be performed.")
-                    logger.info("⚠️  Use --force-collect to collect anyway (data may be stale)")
+                    logger.info("⚠️  Use --force-collect to collect last available options data")
                     return 0
         
         if args.force_collect:
             any_trading = any(collector.is_trading_time(s) for s in symbols)
             if not any_trading:
-                logger.warning("⚠️ Collecting outside market hours - data may be stale!")
+                logger.info("📊 Collecting last available options data (market closed)")
+                logger.info("💡 Data represents most recent available quotes - duplicate checking prevents stale records")
         
         logger.info(f"🎯 Target symbols: {symbols}")
         logger.info(f"📈 Strike count: {args.strikes}")
@@ -250,17 +251,20 @@ Examples:
             logger.info("🚀 Starting single collection...")
             
             if len(symbols) == 1:
-                result = collector.collect_options_chain(symbols[0], args.strikes)
+                result = collector.process_symbol(symbols[0], args.strikes)
                 print(f"\n✅ Collection Result for {symbols[0]}:")
                 print(f"Status: {result['status']}")
-                print(f"Records inserted: {result.get('records_inserted', 0)}")
-                if result.get('duplicates', 0) > 0:
-                    print(f"Duplicates skipped: {result['duplicates']}")
+                print(f"Aggregation stored: {result.get('aggregation_stored', False)}")
+                print(f"Raw records stored: {result.get('raw_records_stored', 0)}")
+                if result.get('call_delta_volume') is not None:
+                    print(f"Call Δ×Volume: {result.get('call_delta_volume', 0):,.0f}")
+                    print(f"Put Δ×Volume: {result.get('put_delta_volume', 0):,.0f}")
+                    print(f"Net Δ×Volume: {result.get('net_delta_volume', 0):,.0f}")
             else:
-                result = collector.collect_multiple_symbols(symbols, args.strikes)
+                result = collector.collect_multiple_symbols(symbols, args.strikes, args.force_collect)
                 print(f"\n✅ Collection Summary:")
                 print(f"Symbols processed: {result['total_symbols']}")
-                print(f"Total records inserted: {result['total_records_inserted']}")
+                print(f"Aggregations stored: {result.get('total_aggregations_stored', 0)}/{result['total_symbols']}")
             
             return 0
         
@@ -289,7 +293,7 @@ Examples:
                             try:
                                 time.sleep(wait_seconds)
                                 logger.info("⏰ Market opening! Resuming collection...")
-                                continue
+                                # Don't continue here - proceed to collection after wait
                             except KeyboardInterrupt:
                                 logger.info("⏹️ Wait interrupted by user")
                                 return 0
@@ -298,11 +302,13 @@ Examples:
                     logger.info(f"📊 Collection #{collection_count}")
                     
                     if len(symbols) == 1:
-                        result = collector.collect_options_chain(symbols[0], args.strikes)
-                        logger.info(f"✅ {symbols[0]}: {result.get('records_inserted', 0)} records")
+                        result = collector.process_symbol(symbols[0], args.strikes)
+                        status = "✅ Aggregated" if result.get('aggregation_stored') else "❌ Failed"
+                        logger.info(f"{status} {symbols[0]}: Delta×Vol stored")
                     else:
-                        result = collector.collect_multiple_symbols(symbols, args.strikes)
-                        logger.info(f"✅ Total: {result['total_records_inserted']} records")
+                        result = collector.collect_multiple_symbols(symbols, args.strikes, args.force_collect)
+                        total_agg = result.get('total_aggregations_stored', 0)
+                        logger.info(f"✅ Total: {total_agg}/{len(symbols)} aggregations stored")
                     
                     logger.info(f"⏳ Waiting {args.interval}s until next collection...")
                     time.sleep(args.interval)

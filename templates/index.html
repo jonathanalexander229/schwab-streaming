@@ -31,6 +31,10 @@
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="streaming-controls">
+                    <button id="startStreamBtn" class="btn btn-success" onclick="app.startStreaming()" style="display: none; padding: 6px 12px; font-size: 14px;">▶️ Start</button>
+                    <button id="stopStreamBtn" class="btn btn-danger" onclick="app.stopStreaming()" style="padding: 6px 12px; font-size: 14px;">⏸️ Stop</button>
+                </div>
                 <div class="status-indicator">
                     <div class="status-dot" id="connectionStatus"></div>
                     <span id="connectionText">Initializing...</span>
@@ -53,9 +57,11 @@
         {% endwith %}
 
         <!-- Navigation buttons -->
-        <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ url_for('historical_charts') }}" class="nav-btn" style="padding: 8px 16px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 14px;">📊 Historical Charts</a>
             <a href="{{ url_for('live_charts') }}" class="nav-btn" style="padding: 8px 16px; text-decoration: none; background: #28a745; color: white; border-radius: 4px; font-size: 14px;">📈 Live Charts</a>
+            <a href="{{ url_for('options_flow') }}" class="nav-btn" style="padding: 8px 16px; text-decoration: none; background: #007bff; color: white; border-radius: 4px; font-size: 14px;">🎯 Options Flow</a>
+            <a href="{{ url_for('chart_test') }}" class="nav-btn" style="padding: 8px 16px; text-decoration: none; background: #17a2b8; color: white; border-radius: 4px; font-size: 14px;">🔬 Chart Test</a>
         </div>
 
         <div class="add-symbol-section">

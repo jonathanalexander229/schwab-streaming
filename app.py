@@ -332,11 +332,6 @@ def test_data():
             'error': f'Test error: {str(e)}'
         }), 500
 
-@app.route('/options-flow')
-@require_auth
-def options_flow():
-    """Options flow dashboard page"""
-    return render_template('options_flow.html')
 
 @app.route('/chart-test')
 @require_auth
@@ -344,11 +339,25 @@ def chart_test():
     """Simple chart test page"""
     return render_template('chart_test.html')
 
+@app.route('/options-flow')
+@require_auth
+def options_flow():
+    """Options flow chart page (Premium Analysis)"""
+    return render_template('options_flow.html')
+
+@app.route('/options-stats')
+@require_auth
+def options_stats():
+    """Options raw data statistics page"""
+    return render_template('options_stats.html')
+
+
 # Register blueprints conditionally
 if Config.ENABLE_MARKET_DATA:
     logger.info("Registering market data routes...")
-    from features.market_data_routes import market_data_bp
+    from features.market_data_routes import market_data_bp, register_socketio_handlers
     app.register_blueprint(market_data_bp)
+    register_socketio_handlers(socketio)
     logger.info("✅ Market data routes registered")
 else:
     logger.info("Market data feature disabled")
