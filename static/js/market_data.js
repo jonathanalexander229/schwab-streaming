@@ -6,6 +6,7 @@ class MarketDataApp {
         this.watchlist = new Set();
         this.isMockMode = false;
         this.connectionStatusInitialized = false;
+        this.streamingActive = true; // Streaming enabled by default
         
         // Set initial connection status
         this.updateConnectionStatus(false);
@@ -24,12 +25,108 @@ class MarketDataApp {
         });
     }
 
+    async startStreaming() {
+        try {
+            console.log('Starting market data streaming');
+            const response = await fetch('/api/streaming/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.streamingActive = true;
+                this.updateStreamingButtons();
+                this.updateStreamingStatus();
+                console.log('Streaming started successfully');
+            } else {
+                console.error('Failed to start streaming:', result.error);
+                alert('Failed to start streaming: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Error starting streaming:', error);
+            alert('Error starting streaming: ' + error.message);
+        }
+    }
+
+    async stopStreaming() {
+        try {
+            console.log('Stopping market data streaming');
+            const response = await fetch('/api/streaming/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.streamingActive = false;
+                this.updateStreamingButtons();
+                this.updateStreamingStatus();
+                console.log('Streaming stopped successfully');
+            } else {
+                console.error('Failed to stop streaming:', result.error);
+                alert('Failed to stop streaming: ' + result.error);
+            }
+        } catch (error) {
+            console.error('Error stopping streaming:', error);
+            alert('Error stopping streaming: ' + error.message);
+        }
+    }
+
+    updateStreamingButtons() {
+        const startBtn = document.getElementById('startStreamBtn');
+        const stopBtn = document.getElementById('stopStreamBtn');
+        
+        if (startBtn && stopBtn) {
+            if (this.streamingActive) {
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+            } else {
+                startBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+            }
+        }
+    }
+
+    updateStreamingStatus() {
+        const statusText = document.getElementById('connectionText');
+        if (statusText && this.socket.connected) {
+            const baseText = this.isMockMode ? 'Mock Connected' : 'Live Connected';
+            if (this.streamingActive) {
+                statusText.textContent = baseText;
+                statusText.style.color = '';
+            } else {
+                statusText.textContent = baseText + ' (Stopped)';
+                statusText.style.color = '#ffa500';
+            }
+        }
+
+        // Update last update time with streaming status
+        const lastUpdate = document.getElementById('lastUpdateTime');
+        if (lastUpdate && !this.streamingActive) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            lastUpdate.textContent = `Streaming stopped - ${timeStr}`;
+            lastUpdate.style.color = '#ffa500';
+        } else if (lastUpdate && this.streamingActive) {
+            lastUpdate.style.color = '';
+        }
+    }
+
     setupSocketHandlers() {
         this.socket.on('connect', () => {
             console.log('Connected to server');
             // Check mock mode first, then update connection status
             this.checkMockMode().then(() => {
                 this.updateConnectionStatus(true);
+                this.updateStreamingButtons();
+                this.updateStreamingStatus();
             });
         });
 
@@ -516,9 +613,31 @@ class MarketDataApp {
         return volume.toString();
     }
 
+    async checkStreamingStatus() {
+        try {
+            const response = await fetch('/api/streaming/status');
+            const data = await response.json();
+            
+            if (data.streaming_active !== undefined) {
+                this.streamingActive = data.streaming_active;
+                this.updateStreamingButtons();
+                this.updateStreamingStatus();
+                console.log('Streaming status:', this.streamingActive ? 'Active' : 'Stopped');
+            }
+        } catch (error) {
+            console.error('Error checking streaming status:', error);
+            // Default to active if we can't check
+            this.streamingActive = true;
+            this.updateStreamingButtons();
+        }
+    }
+
     async loadInitialData() {
         // First check mock mode
         const authData = await this.checkMockMode();
+        
+        // Check current streaming status
+        await this.checkStreamingStatus();
         
         // Then update connection status after a brief delay to ensure socket is ready
         setTimeout(() => {

@@ -251,6 +251,24 @@ def get_aggregated_chart_data(symbol):
         logger.error(f"Error getting aggregated chart data for {symbol}: {e}")
         return jsonify({'error': str(e)}), 500
 
+@options_bp.route('/symbols')
+@require_auth
+def get_symbols_list():
+    """Get symbol names for dropdown - fast version without stats"""
+    try:
+        calculator = OptionsFlowCalculator()
+        symbols = calculator.database.get_all_symbols()
+        
+        return jsonify({
+            'symbols': symbols,
+            'total_symbols': len(symbols),
+            'available': len(symbols) > 0
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting symbols: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @options_bp.route('/status')
 @require_auth
 def get_options_status():

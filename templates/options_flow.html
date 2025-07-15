@@ -167,6 +167,7 @@
                 <a href="/" style="text-decoration: none; color: #333;">← Back to Dashboard</a>
                 <div class="title">Options Flow - <span id="current-symbol">SPY</span></div>
                 <div class="subtitle">Cumulative flow changes from session baseline using delta×volume</div>
+                <div class="subtitle" id="last-update" style="color: #888; font-size: 12px; margin-top: 4px;">Last updated: Never</div>
             </div>
             <div class="controls">
                 <div class="legend">
@@ -186,23 +187,22 @@
                 <div class="control-group">
                     <label>Symbol:</label>
                     <select id="symbol-select">
-                        <option value="SPY" selected>SPY</option>
-                        <option value="QQQ">QQQ</option>
-                        <option value="TSLA">TSLA</option>
-                        <option value="AAPL">AAPL</option>
-                        <option value="NVDA">NVDA</option>
-                        <option value="MSFT">MSFT</option>
-                        <option value="GOOGL">GOOGL</option>
-                        <option value="AMZN">AMZN</option>
-                        <option value="META">META</option>
-                        <option value="NFLX">NFLX</option>
-                        <option value="AMD">AMD</option>
-                        <option value="MSTR">MSTR</option>
+                        <option value="">Loading symbols...</option>
                     </select>
                 </div>
                 <div class="control-group">
                     <label>Date:</label>
                     <input type="date" id="date-select" />
+                </div>
+                <div class="control-group">
+                    <label>Auto-update:</label>
+                    <select id="auto-update-select">
+                        <option value="0">Off</option>
+                        <option value="15">15 seconds</option>
+                        <option value="30" selected>30 seconds</option>
+                        <option value="45">45 seconds</option>
+                        <option value="60">1 minute</option>
+                    </select>
                 </div>
                 <button onclick="loadChartData()">Refresh</button>
             </div>
@@ -239,6 +239,7 @@
         let callsSeries = null;
         let putsSeries = null;
         let underlyingSeries = null;
+        let autoUpdateInterval = null;
         
         function initChart() {
             const container = document.getElementById('chartContainer');
@@ -535,6 +536,9 @@
                     const mostRecentDate = new Date(lastPoint.timestamp);
                     const dateString = mostRecentDate.toISOString().split('T')[0]; // YYYY-MM-DD format
                     document.getElementById('date-select').value = dateString;
+                    
+                    // Update last update info
+                    document.getElementById('last-update').textContent = `Last updated: ${new Date().toLocaleTimeString()} - Showing data for ${dateDisplay}`;
                 }
                 console.log(`Loaded ${result.data.length} aggregated data points for ${symbol} (${dateDisplay}) - Cumulative Flow Analysis`);
                 
@@ -553,15 +557,90 @@
             document.getElementById('underlying-price-label').textContent = currentSymbol;
         }
 
+        // Load symbols from API - fast version without stats
+        async function loadSymbols() {
+            try {
+                const response = await fetch('/api/options/symbols');
+                const data = await response.json();
+                
+                const symbolSelect = document.getElementById('symbol-select');
+                symbolSelect.innerHTML = '';
+                
+                if (data.symbols && data.symbols.length > 0) {
+                    // Sort symbols alphabetically
+                    const symbols = data.symbols.sort();
+                    
+                    symbols.forEach(symbol => {
+                        const option = document.createElement('option');
+                        option.value = symbol;
+                        option.textContent = symbol;
+                        symbolSelect.appendChild(option);
+                    });
+                    
+                    // Select SPY by default if it exists, otherwise select first symbol
+                    if (symbols.includes('SPY')) {
+                        symbolSelect.value = 'SPY';
+                    } else {
+                        symbolSelect.value = symbols[0];
+                    }
+                    
+                    console.log(`Loaded ${symbols.length} symbols (fast load)`);
+                } else {
+                    symbolSelect.innerHTML = '<option value="">No symbols available</option>';
+                }
+            } catch (error) {
+                console.error('Error loading symbols:', error);
+                document.getElementById('symbol-select').innerHTML = '<option value="">Error loading symbols</option>';
+            }
+        }
+
+        // Auto-update functionality
+        function startAutoUpdate() {
+            const intervalSeconds = parseInt(document.getElementById('auto-update-select').value);
+            
+            // Clear existing interval
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+            }
+            
+            // Start new interval if not set to "Off"
+            if (intervalSeconds > 0) {
+                autoUpdateInterval = setInterval(() => {
+                    console.log('Auto-updating options flow data...');
+                    loadChartData();
+                }, intervalSeconds * 1000);
+            }
+        }
+        
+        function stopAutoUpdate() {
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+            }
+        }
+
         // Event listeners
         document.getElementById('symbol-select').addEventListener('change', loadChartData);
         document.getElementById('date-select').addEventListener('change', loadChartData);
+        document.getElementById('auto-update-select').addEventListener('change', startAutoUpdate);
 
         // Initialize
-        window.addEventListener('load', () => {
+        window.addEventListener('load', async () => {
+            await loadSymbols();
             initializeLabels();
             if (initChart()) {
                 loadChartData();
+                startAutoUpdate(); // Start auto-update with default 30 seconds
+            }
+        });
+        
+        // Stop auto-update when page is hidden to save resources
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoUpdate();
+            } else {
+                startAutoUpdate();
             }
         });
 

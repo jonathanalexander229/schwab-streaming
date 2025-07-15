@@ -31,6 +31,10 @@
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="streaming-controls">
+                    <button id="startStreamBtn" class="btn btn-success" onclick="app.startStreaming()" style="display: none; padding: 6px 12px; font-size: 14px;">▶️ Start</button>
+                    <button id="stopStreamBtn" class="btn btn-danger" onclick="app.stopStreaming()" style="padding: 6px 12px; font-size: 14px;">⏸️ Stop</button>
+                </div>
                 <div class="status-indicator">
                     <div class="status-dot" id="connectionStatus"></div>
                     <span id="connectionText">Initializing...</span>

@@ -138,6 +138,67 @@ def trigger_market_event():
         logger.error(f"Error triggering market event: {e}")
         return jsonify({'error': str(e)}), 500
 
+@market_data_bp.route('/api/streaming/start', methods=['POST'])
+@require_auth
+def start_streaming():
+    """Start market data streaming"""
+    
+    manager = _get_manager()
+    if not manager:
+        return jsonify({'error': 'Market data manager not initialized'}), 500
+    
+    try:
+        success = manager.start_streaming()
+        if success:
+            logger.info('Market data streaming started via API')
+            return jsonify({
+                'success': True, 
+                'message': 'Streaming started',
+                'streaming_active': manager.equity_stream_manager.is_active()
+            })
+        else:
+            logger.error('Failed to start market data streaming')
+            return jsonify({'error': 'Failed to start streaming'}), 500
+    except Exception as e:
+        logger.error(f'Error starting streaming: {e}')
+        return jsonify({'error': f'Error starting streaming: {str(e)}'}), 500
+
+@market_data_bp.route('/api/streaming/stop', methods=['POST'])
+@require_auth
+def stop_streaming():
+    """Stop market data streaming"""
+    
+    manager = _get_manager()
+    if not manager:
+        return jsonify({'error': 'Market data manager not initialized'}), 500
+    
+    try:
+        manager.stop_streaming()
+        logger.info('Market data streaming stopped via API')
+        return jsonify({
+            'success': True, 
+            'message': 'Streaming stopped',
+            'streaming_active': manager.equity_stream_manager.is_active()
+        })
+    except Exception as e:
+        logger.error(f'Error stopping streaming: {e}')
+        return jsonify({'error': f'Error stopping streaming: {str(e)}'}), 500
+
+@market_data_bp.route('/api/streaming/status')
+@require_auth
+def streaming_status():
+    """Get current streaming status"""
+    
+    manager = _get_manager()
+    if not manager:
+        return jsonify({'error': 'Market data manager not initialized'}), 500
+    
+    return jsonify({
+        'streaming_active': manager.equity_stream_manager.is_active(),
+        'subscribed_symbols': list(manager.equity_stream_manager.get_subscriptions()),
+        'watchlist_count': len(manager.watchlist)
+    })
+
 @market_data_bp.route('/api/debug/session')
 @require_auth
 def debug_session():
@@ -172,7 +233,7 @@ def debug_session():
         'manager_watchlist': list(manager.watchlist) if manager else None,
         'manager_watchlist_count': len(manager.watchlist) if manager else 0,
         'manager_client_type': type(manager.schwab_client).__name__ if manager and manager.schwab_client else None,
-        'streaming_active': manager.stream_manager.is_active() if manager else None,
+        'streaming_active': manager.equity_stream_manager.is_active() if manager else None,
         'data_source': manager.get_auth_status().get('data_source') if manager else None,
         'feature_manager': feature_manager_status,
         'client_test': client_info
