@@ -15,6 +15,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Suppress unnecessary schwabdev token expiration warnings
+logging.getLogger('Schwabdev.Tokens').setLevel(logging.WARNING)
+
 # Configuration
 class Config:
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')

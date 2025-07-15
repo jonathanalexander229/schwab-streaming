@@ -36,6 +36,8 @@ def setup_logging(verbose: bool = False):
             logging.FileHandler('options_collection.log')
         ]
     )
+    # Suppress unnecessary schwabdev token expiration warnings
+    logging.getLogger('Schwabdev.Tokens').setLevel(logging.WARNING)
 
 def load_watchlist_symbols(watchlist_path: str = 'watchlist.json') -> list:
     """Load symbols from watchlist file"""
