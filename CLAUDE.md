@@ -198,6 +198,16 @@ Real-time updates are pushed via Socket.IO:
 - **Always implement date fallback logic** for chart data
 - **Consider page visibility for auto-updates**
 
+### Database Concurrency (SQLite)
+
+**Issue Resolved**: SQLite concurrency problems between options collection script and Flask app have been addressed with robust connection management in `OptionsDatabase` class.
+
+**Current Implementation**:
+- WAL mode with optimized PRAGMA settings for better concurrency
+- Retry logic with exponential backoff for lock conflicts  
+- Separate read-only and write connections with proper transaction scoping
+- Centralized `_execute_read()` and `_execute_write()` methods for all database operations
+
 ### Important Implementation Notes
 
 - **Always use dependency injection** when adding new features to `FeatureManager`

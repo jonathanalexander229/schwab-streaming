@@ -1,7 +1,9 @@
 import sqlite3
 import logging
-from typing import List, Dict, Any, Optional
+import time
+from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime, timedelta
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -11,20 +13,149 @@ class OptionsDatabase:
     Handles comprehensive options chain data with full Greeks and pricing information.
     """
     
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, timeout: float = 30.0, max_retries: int = 3):
         """
         Initialize the options database
         
         Args:
             db_path: Path to the SQLite database file
+            timeout: Connection timeout in seconds for lock conflicts
+            max_retries: Maximum number of retry attempts for database operations
         """
         self.db_path = db_path
+        self.timeout = timeout
+        self.max_retries = max_retries
         self.init_database()
-        logger.info(f"📊 Options database initialized: {db_path}")
+        logger.info(f"📊 Options database initialized: {db_path} (timeout: {timeout}s, retries: {max_retries})")
+    
+    @contextmanager
+    def _get_connection(self, read_only: bool = False):
+        """
+        Get a database connection with proper timeout and configuration
+        
+        Args:
+            read_only: If True, open connection in read-only mode for better concurrency
+            
+        Yields:
+            sqlite3.Connection: Database connection with proper configuration
+        """
+        conn = None
+        try:
+            # Configure connection for better concurrency handling
+            if read_only:
+                # Read-only connections can have better concurrency
+                conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", 
+                                     uri=True, timeout=self.timeout)
+            else:
+                conn = sqlite3.connect(self.db_path, timeout=self.timeout)
+            
+            # Configure connection for better performance and reliability
+            conn.execute("PRAGMA journal_mode=WAL")  # Better concurrency
+            conn.execute("PRAGMA synchronous=NORMAL")  # Balance safety/performance
+            conn.execute("PRAGMA temp_store=memory")  # Use memory for temp data
+            conn.execute("PRAGMA cache_size=10000")  # Larger cache
+            
+            if read_only:
+                conn.execute("PRAGMA query_only=1")  # Ensure read-only
+            
+            yield conn
+            
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e).lower():
+                logger.warning(f"Database lock detected: {e}")
+                raise
+            else:
+                logger.error(f"Database operational error: {e}")
+                raise
+        finally:
+            if conn:
+                conn.close()
+    
+    def _execute_read(self, operation: Callable[[sqlite3.Connection], Any], 
+                     operation_name: str = "read") -> Any:
+        """
+        Execute a read operation with retry logic and proper connection handling
+        
+        Args:
+            operation: Function that takes a connection and returns a result
+            operation_name: Name of the operation for logging
+            
+        Returns:
+            Result from the operation
+        """
+        last_exception = None
+        
+        for attempt in range(self.max_retries):
+            try:
+                with self._get_connection(read_only=True) as conn:
+                    return operation(conn)
+                    
+            except sqlite3.OperationalError as e:
+                last_exception = e
+                if "database is locked" in str(e).lower() and attempt < self.max_retries - 1:
+                    retry_delay = 0.1 * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Database locked during {operation_name}, retrying in {retry_delay:.1f}s (attempt {attempt + 1}/{self.max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Database error during {operation_name}: {e}")
+                    raise
+            except Exception as e:
+                logger.error(f"Unexpected error during {operation_name}: {e}")
+                raise
+        
+        # If we get here, all retries failed
+        logger.error(f"All {self.max_retries} attempts failed for {operation_name}")
+        raise last_exception
+    
+    def _execute_write(self, operation: Callable[[sqlite3.Connection], Any], 
+                      operation_name: str = "write") -> Any:
+        """
+        Execute a write operation with retry logic and proper transaction handling
+        
+        Args:
+            operation: Function that takes a connection and returns a result
+            operation_name: Name of the operation for logging
+            
+        Returns:
+            Result from the operation
+        """
+        last_exception = None
+        
+        for attempt in range(self.max_retries):
+            try:
+                with self._get_connection(read_only=False) as conn:
+                    # Start immediate transaction for write operations
+                    conn.execute("BEGIN IMMEDIATE")
+                    try:
+                        result = operation(conn)
+                        conn.commit()
+                        return result
+                    except Exception as e:
+                        conn.rollback()
+                        raise
+                        
+            except sqlite3.OperationalError as e:
+                last_exception = e
+                if "database is locked" in str(e).lower() and attempt < self.max_retries - 1:
+                    retry_delay = 0.1 * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Database locked during {operation_name}, retrying in {retry_delay:.1f}s (attempt {attempt + 1}/{self.max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Database error during {operation_name}: {e}")
+                    raise
+            except Exception as e:
+                logger.error(f"Unexpected error during {operation_name}: {e}")
+                raise
+        
+        # If we get here, all retries failed
+        logger.error(f"All {self.max_retries} attempts failed for {operation_name}")
+        raise last_exception
     
     def init_database(self):
         """Create the options_data table with comprehensive schema"""
-        with sqlite3.connect(self.db_path) as conn:
+        def _create_schema(conn):
             cursor = conn.cursor()
             
             # Create comprehensive options_data table
@@ -150,6 +281,9 @@ class OptionsDatabase:
             
             conn.commit()
             logger.info("✅ Options database schema created/verified")
+            return True
+        
+        self._execute_write(_create_schema, "init_database")
     
     def insert_options_data(self, options_records: List[Dict[str, Any]]) -> tuple[int, int]:
         """
@@ -164,11 +298,10 @@ class OptionsDatabase:
         if not options_records:
             return 0, 0
         
-        inserted_count = 0
-        duplicate_count = 0
-        
-        with sqlite3.connect(self.db_path) as conn:
+        def _insert_records(conn):
             cursor = conn.cursor()
+            inserted_count = 0
+            duplicate_count = 0
             
             for record in options_records:
                 try:
@@ -218,10 +351,10 @@ class OptionsDatabase:
                     logger.error(f"Error inserting options record: {e}")
                     continue
             
-            conn.commit()
+            logger.info(f"📊 Options data inserted: {inserted_count} new, {duplicate_count} duplicates")
+            return inserted_count, duplicate_count
         
-        logger.info(f"📊 Options data inserted: {inserted_count} new, {duplicate_count} duplicates")
-        return inserted_count, duplicate_count
+        return self._execute_write(_insert_records, "insert_options_data")
     
     def get_options_data(self, symbol: str, start_timestamp: int, end_timestamp: int,
                         option_type: Optional[str] = None, 
@@ -239,7 +372,7 @@ class OptionsDatabase:
         Returns:
             List of options data records
         """
-        with sqlite3.connect(self.db_path) as conn:
+        def _get_data(conn):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -263,6 +396,8 @@ class OptionsDatabase:
             rows = cursor.fetchall()
             
             return [dict(row) for row in rows]
+        
+        return self._execute_read(_get_data, "get_options_data")
     
     def get_flow_summary(self, symbol: str, start_timestamp: int, end_timestamp: int) -> List[Dict[str, Any]]:
         """
@@ -276,7 +411,7 @@ class OptionsDatabase:
         Returns:
             List of flow summary records
         """
-        with sqlite3.connect(self.db_path) as conn:
+        def _get_flow_data(conn):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -321,6 +456,8 @@ class OptionsDatabase:
                 results.append(result)
             
             return results
+        
+        return self._execute_read(_get_flow_data, "get_flow_summary")
     
     def get_symbol_stats(self, symbol: str) -> Dict[str, Any]:
         """
@@ -332,7 +469,7 @@ class OptionsDatabase:
         Returns:
             Dictionary with symbol statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
+        def _get_stats(conn):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -358,13 +495,17 @@ class OptionsDatabase:
                 result['latest_date'] = datetime.fromtimestamp(result['latest_timestamp'] / 1000).isoformat()
             
             return result
+        
+        return self._execute_read(_get_stats, "get_symbol_stats")
     
     def get_all_symbols(self) -> List[str]:
         """Get list of all symbols with options data"""
-        with sqlite3.connect(self.db_path) as conn:
+        def _get_symbols(conn):
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT symbol FROM options_data ORDER BY symbol")
             return [row[0] for row in cursor.fetchall()]
+        
+        return self._execute_read(_get_symbols, "get_all_symbols")
     
     def insert_flow_aggregation(self, flow_data: Dict[str, Any]) -> bool:
         """
@@ -376,43 +517,43 @@ class OptionsDatabase:
         Returns:
             True if successful, False otherwise
         """
+        def _insert_flow_agg(conn):
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO options_flow_agg (
+                    symbol, timestamp, call_delta_volume, put_delta_volume, net_delta_volume,
+                    delta_ratio, call_volume, put_volume, total_volume,
+                    call_open_interest, put_open_interest, total_open_interest,
+                    put_call_ratio, put_call_oi_ratio, underlying_price,
+                    sentiment, sentiment_strength, total_records, collection_timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                flow_data.get('symbol'),
+                flow_data.get('timestamp'),
+                flow_data.get('call_delta_volume', 0),
+                flow_data.get('put_delta_volume', 0),
+                flow_data.get('net_delta_volume', 0),
+                flow_data.get('delta_ratio', 0),
+                flow_data.get('call_volume', 0),
+                flow_data.get('put_volume', 0),
+                flow_data.get('total_volume', 0),
+                flow_data.get('call_open_interest', 0),
+                flow_data.get('put_open_interest', 0),
+                flow_data.get('total_open_interest', 0),
+                flow_data.get('put_call_ratio', 0),
+                flow_data.get('put_call_oi_ratio', 0),
+                flow_data.get('underlying_price'),
+                flow_data.get('sentiment'),
+                flow_data.get('sentiment_strength', 0),
+                flow_data.get('total_records', 0),
+                flow_data.get('collection_timestamp')
+            ))
+            
+            return True
+        
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO options_flow_agg (
-                        symbol, timestamp, call_delta_volume, put_delta_volume, net_delta_volume,
-                        delta_ratio, call_volume, put_volume, total_volume,
-                        call_open_interest, put_open_interest, total_open_interest,
-                        put_call_ratio, put_call_oi_ratio, underlying_price,
-                        sentiment, sentiment_strength, total_records, collection_timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    flow_data.get('symbol'),
-                    flow_data.get('timestamp'),
-                    flow_data.get('call_delta_volume', 0),
-                    flow_data.get('put_delta_volume', 0),
-                    flow_data.get('net_delta_volume', 0),
-                    flow_data.get('delta_ratio', 0),
-                    flow_data.get('call_volume', 0),
-                    flow_data.get('put_volume', 0),
-                    flow_data.get('total_volume', 0),
-                    flow_data.get('call_open_interest', 0),
-                    flow_data.get('put_open_interest', 0),
-                    flow_data.get('total_open_interest', 0),
-                    flow_data.get('put_call_ratio', 0),
-                    flow_data.get('put_call_oi_ratio', 0),
-                    flow_data.get('underlying_price'),
-                    flow_data.get('sentiment'),
-                    flow_data.get('sentiment_strength', 0),
-                    flow_data.get('total_records', 0),
-                    flow_data.get('collection_timestamp')
-                ))
-                
-                conn.commit()
-                return True
-                
+            return self._execute_write(_insert_flow_agg, "insert_flow_aggregation")
         except Exception as e:
             logger.error(f"Error inserting flow aggregation: {e}")
             return False
@@ -431,7 +572,7 @@ class OptionsDatabase:
         Returns:
             List of aggregated flow records
         """
-        with sqlite3.connect(self.db_path) as conn:
+        def _get_flow_agg(conn):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
@@ -450,52 +591,6 @@ class OptionsDatabase:
             rows = cursor.fetchall()
             
             return [dict(row) for row in rows]
-    
-    def get_latest_flow_aggregation(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """
-        Get the most recent flow aggregation for a symbol
         
-        Args:
-            symbol: Stock symbol
-            
-        Returns:
-            Latest flow aggregation record or None
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT * FROM options_flow_agg
-                WHERE symbol = ?
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """, (symbol,))
-            
-            row = cursor.fetchone()
-            return dict(row) if row else None
+        return self._execute_read(_get_flow_agg, "get_flow_aggregations")
     
-    def get_recent_options_data(self, symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
-        """
-        Get most recent raw options data for a symbol
-        
-        Args:
-            symbol: Stock symbol
-            limit: Maximum number of records to return
-            
-        Returns:
-            List of recent options data records
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT * FROM options_data
-                WHERE symbol = ?
-                ORDER BY timestamp DESC, strike_price ASC
-                LIMIT ?
-            """, (symbol, limit))
-            
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
