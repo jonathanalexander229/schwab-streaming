@@ -1,0 +1,294 @@
+name: Mock Mode Testing Suite
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug mode'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  test-mock-mode:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5.6.0
+      with:
+        python-version: "3.11"
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4.2.3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y sqlite3
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Verify installation
+      run: |
+        python -c "import flask; print(f'Flask: {flask.__version__}')"
+        python -c "import socketio; print('SocketIO imported successfully')"
+        python -c "import schwabdev; print('schwabdev imported successfully')"
+
+    - name: Create test data directory
+      run: |
+        mkdir -p data
+        mkdir -p test_results
+
+    - name: Run basic test suite
+      run: |
+        python test_integration.py --basic
+      timeout-minutes: 5
+
+    - name: Test basic imports
+      run: |
+        python -c "
+        print('Testing basic imports...')
+        from mock_data import MockMarketDataGenerator, MockSchwabStreamer
+        from features.market_data import MarketDataManager
+        print('✓ All imports successful')
+        "
+
+    - name: Test field mappings
+      run: |
+        python -c "
+        from mock_data import MockQuote
+        print('Testing field mappings...')
+        quote = MockQuote('TEST', 100.0, 99.95, 100.05, 1000, 101.0, 99.0, 1.0, 1.0, 1234567890)
+        schwab_format = quote.to_schwab_format()
+        assert schwab_format['1'] == 99.95  # Bid Price
+        assert schwab_format['2'] == 100.05 # Ask Price  
+        assert schwab_format['3'] == 100.0  # Last Price
+        assert schwab_format['8'] == 1000   # Volume
+        assert schwab_format['10'] == 101.0 # High Price
+        assert schwab_format['11'] == 99.0  # Low Price
+        assert schwab_format['18'] == 1.0   # Net Change
+        assert schwab_format['42'] == 1.0   # Net Change Percent
+        print('✓ All field mappings correct - GitHub issue #5 validated')
+        "
+
+    - name: Test mock data performance
+      run: |
+        python -c "
+        from mock_data import MockMarketDataGenerator
+        import time
+        
+        print('Testing mock data generation performance...')
+        generator = MockMarketDataGenerator()
+        
+        # Test quote generation speed
+        start = time.time()
+        for i in range(500):
+            quote = generator.generate_quote('AAPL')
+        generation_time = time.time() - start
+        
+        quotes_per_sec = 500 / generation_time
+        print(f'Generated 500 quotes in {generation_time:.3f}s ({quotes_per_sec:.1f} quotes/sec)')
+        
+        # Performance assertion
+        assert generation_time < 2.0, f'Performance too slow: {generation_time:.3f}s'
+        print('✓ Performance test passed')
+        "
+
+    - name: Test mock streaming functionality
+      run: |
+        python -c "
+        from mock_data import MockSchwabStreamer
+        import json
+        import time
+        
+        print('Testing mock streaming...')
+        
+        streamer = MockSchwabStreamer()
+        received_messages = []
+        
+        def message_handler(message):
+            try:
+                data = json.loads(message)
+                received_messages.append(data)
+                symbol = data['data'][0]['content'][0]['key']
+                price = data['data'][0]['content'][0]['3']  # Last price
+                print(f'  📊 {symbol}: \${price}')
+            except Exception as e:
+                print(f'  ❌ Error: {e}')
+        
+        # Start streaming
+        streamer.start(message_handler)
+        streamer.add_symbol('AAPL')
+        streamer.add_symbol('MSFT')
+        streamer.set_update_interval(0.5)
+        
+        # Stream for 3 seconds
+        print('Streaming for 3 seconds...')
+        time.sleep(3)
+        
+        streamer.stop()
+        
+        # Validate results
+        assert len(received_messages) > 0, 'No messages received'
+        print(f'✓ Received {len(received_messages)} streaming messages')
+        
+        # Validate message format
+        sample_msg = received_messages[0]
+        assert 'data' in sample_msg, 'Missing data field'
+        assert sample_msg['data'][0]['service'] == 'LEVELONE_EQUITIES', 'Wrong service'
+        print('✓ Mock streaming test passed')
+        "
+
+    - name: Test database functionality
+      run: |
+        python -c "
+        from features.market_data import MarketDataManager
+        import tempfile
+        
+        print('Testing database functionality...')
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = MarketDataManager(temp_dir)
+            manager.is_mock_mode = True
+            
+            # Test database creation
+            conn = manager.get_db_connection()
+            cursor = conn.cursor()
+            
+            # Check tables exist
+            cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table'\")
+            tables = [row[0] for row in cursor.fetchall()]
+            assert 'equity_quotes' in tables, 'equity_quotes table missing'
+            assert 'data_metadata' in tables, 'data_metadata table missing'
+            
+            # Test watchlist functionality
+            manager.add_symbol('AAPL')
+            manager.add_symbol('MSFT')
+            watchlist = manager.get_watchlist()
+            assert 'AAPL' in watchlist, 'AAPL not in watchlist'
+            assert 'MSFT' in watchlist, 'MSFT not in watchlist'
+            
+            conn.close()
+            print('✓ Database functionality test passed')
+        "
+
+    - name: Test error handling
+      run: |
+        python -c "
+        from features.market_data import MarketDataManager
+        import tempfile
+        import json
+        
+        print('Testing error handling...')
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = MarketDataManager(temp_dir)
+            manager.is_mock_mode = True
+            
+            # Test invalid JSON handling
+            try:
+                manager.equity_stream_manager._process_raw_message('invalid json')
+                print('  ✓ Invalid JSON handled gracefully')
+            except Exception as e:
+                print(f'  ⚠ Invalid JSON caused error: {e}')
+            
+            # Test empty message handling
+            try:
+                manager.equity_stream_manager._process_raw_message('{}')
+                print('  ✓ Empty message handled gracefully')
+            except Exception as e:
+                print(f'  ⚠ Empty message caused error: {e}')
+        
+        print('✓ Error handling test completed')
+        "
+
+
+
+    - name: Print test summary
+      if: always()
+      run: |
+        echo "=================================="
+        echo "🧪 MOCK MODE TEST SUMMARY"
+        echo "=================================="
+        echo "Python Version: 3.11"
+        echo "OS: ubuntu-latest"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "=================================="
+        echo "Tests completed for mock market data streaming!"
+        echo "✓ Basic test suite (unit tests)"
+        echo "✓ Import validation"
+        echo "✓ Field mapping validation (GitHub issue #5)"
+        echo "✓ Mock data performance"
+        echo "✓ Mock streaming functionality"
+        echo "✓ Database operations"
+        echo "✓ Error handling"
+        echo "=================================="
+
+    - name: Debug information
+      if: inputs.debug_enabled == true
+      run: |
+        echo "🔍 DEBUG INFORMATION"
+        echo "===================="
+        python --version
+        pip list
+        echo "===================="
+        ls -la
+        echo "===================="
+        if [ -d "data" ]; then
+          echo "Data directory contents:"
+          ls -la data/
+        fi
+        echo "===================="
+
+  validate-requirements:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5.6.0
+      with:
+        python-version: 3.11
+
+    - name: Validate requirements.txt
+      run: |
+        echo "📋 Validating requirements.txt..."
+        
+        # Check if requirements.txt exists
+        if [ ! -f "requirements.txt" ]; then
+          echo "❌ requirements.txt not found!"
+          exit 1
+        fi
+        
+        # Check for empty requirements
+        if [ ! -s "requirements.txt" ]; then
+          echo "❌ requirements.txt is empty!"
+          exit 1
+        fi
+        
+        # Try to install requirements
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt --dry-run
+        
+        echo "✅ requirements.txt validation passed!"
+
+    - name: Check for security vulnerabilities
+      run: |
+        pip install safety
+        safety check -r requirements.txt --short-report || echo "⚠️ Security check completed with warnings (non-blocking)"

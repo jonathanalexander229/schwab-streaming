@@ -1,0 +1,9 @@
+
+# requirements.txt
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+python-dotenv==1.0.0
+schwabdev
+requests==2.31.0
+python-socketio==5.8.0
+eventlet==0.33.3

@@ -1,0 +1,215 @@
+<svg viewBox="0 0 1400 1100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1400" height="1100" fill="#f8f9fa"/>
+  
+  <!-- Title -->
+  <text x="700" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#004B8D">
+    Schwab Market Data Streaming - Modular Architecture
+  </text>
+  
+  <!-- Environment Layer -->
+  <g id="environment">
+    <rect x="50" y="60" width="1300" height="80" fill="#f0f4f8" stroke="#2c5282" stroke-width="2" rx="5" stroke-dasharray="5,5"/>
+    <text x="70" y="85" font-weight="bold" font-size="14" fill="#2c5282">Environment Configuration (.env)</text>
+    <text x="70" y="105" font-size="12" fill="#333">ENABLE_MARKET_DATA=true • USE_MOCK_DATA=false</text>
+    <text x="70" y="120" font-size="12" fill="#333">SCHWAB_APP_KEY=*** • SCHWAB_APP_SECRET=*** • FLASK_SECRET_KEY=***</text>
+  </g>
+
+  <!-- App Orchestrator -->
+  <g id="app-orchestrator">
+    <rect x="550" y="170" width="300" height="140" fill="#e8f5e8" stroke="#4caf50" stroke-width="3" rx="5"/>
+    <text x="700" y="195" text-anchor="middle" font-weight="bold" font-size="16" fill="#4caf50">🎛️ App Orchestrator</text>
+    <text x="700" y="215" text-anchor="middle" font-size="14" fill="#333">app.py</text>
+    <line x1="560" y1="225" x2="840" y2="225" stroke="#4caf50"/>
+    <text x="570" y="245" font-size="12" fill="#333">+ _initialize_features()</text>
+    <text x="570" y="260" font-size="12" fill="#333">+ _cleanup_features()</text>
+    <text x="570" y="275" font-size="12" fill="#333">+ Config class</text>
+    <line x1="560" y1="285" x2="840" y2="285" stroke="#4caf50"/>
+    <text x="570" y="300" font-size="12" fill="#333">• Environment-driven configuration</text>
+  </g>
+
+  <!-- Core Module -->
+  <g id="core-module">
+    <rect x="100" y="350" width="300" height="140" fill="#fff9c4" stroke="#f9a825" stroke-width="2" rx="5"/>
+    <text x="250" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#f9a825">⚙️ Core Module</text>
+    <text x="250" y="395" text-anchor="middle" font-size="12" fill="#333">core/feature_manager.py</text>
+    <line x1="110" y1="405" x2="390" y2="405" stroke="#f9a825"/>
+    <text x="120" y="425" font-weight="bold" font-size="12" fill="#f9a825">FeatureManager</text>
+    <text x="120" y="440" font-size="11" fill="#333">+ initialize_market_data()</text>
+    <text x="120" y="455" font-size="11" fill="#333">+ get_feature() + is_feature_enabled()</text>
+    <text x="120" y="470" font-size="11" fill="#333">+ get_mock_mode()</text>
+    <line x1="110" y1="480" x2="390" y2="480" stroke="#f9a825"/>
+  </g>
+
+  <!-- Authentication Module -->
+  <g id="auth-module">
+    <rect x="450" y="350" width="250" height="120" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="2" rx="5"/>
+    <text x="575" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#7b1fa2">🔐 Authentication Module</text>
+    <text x="575" y="395" text-anchor="middle" font-size="12" fill="#333">auth.py</text>
+    <line x1="460" y1="405" x2="690" y2="405" stroke="#7b1fa2"/>
+    <text x="470" y="425" font-size="12" fill="#333">+ get_schwab_client(mock)</text>
+    <text x="470" y="440" font-size="12" fill="#333">+ get_schwab_streamer()</text>
+    <text x="470" y="455" font-size="12" fill="#333">+ require_auth() decorator</text>
+    <line x1="460" y1="460" x2="690" y2="460" stroke="#7b1fa2"/>
+  </g>
+
+  <!-- Streaming Infrastructure -->
+  <g id="streaming-infrastructure">
+    <rect x="750" y="350" width="350" height="180" fill="#e8f4f8" stroke="#0097a7" stroke-width="2" rx="5"/>
+    <text x="925" y="375" text-anchor="middle" font-weight="bold" font-size="14" fill="#0097a7">🌊 Streaming Infrastructure</text>
+    <text x="925" y="395" text-anchor="middle" font-size="12" fill="#333">streaming/</text>
+    <line x1="760" y1="405" x2="1090" y2="405" stroke="#0097a7"/>
+    
+    <text x="770" y="425" font-weight="bold" font-size="12" fill="#0097a7">StreamManager (stream_manager.py)</text>
+    <text x="770" y="440" font-size="11" fill="#333">+ set_dependencies() + set_message_handler()</text>
+    <text x="770" y="455" font-size="11" fill="#333">+ start_streaming() + stop_streaming()</text>
+    <text x="770" y="470" font-size="11" fill="#333">+ add_subscription() + process_message()</text>
+    
+    <text x="770" y="490" font-weight="bold" font-size="12" fill="#0097a7">SubscriptionManager (subscription_manager.py)</text>
+    <text x="770" y="505" font-size="11" fill="#333">+ add_subscription() + remove_subscription()</text>
+    <text x="770" y="520" font-size="11" fill="#333">+ get_subscriptions() + is_subscribed()</text>
+    
+    <line x1="760" y1="520" x2="1090" y2="520" stroke="#0097a7"/>
+  </g>
+
+  <!-- Market Data Module -->
+  <g id="market-data-module">
+    <rect x="350" y="580" width="400" height="150" fill="#e3f2fd" stroke="#1976d2" stroke-width="2" rx="5"/>
+    <text x="550" y="605" text-anchor="middle" font-weight="bold" font-size="14" fill="#1976d2">📈 Market Data Module</text>
+    <line x1="360" y1="615" x2="740" y2="615" stroke="#1976d2"/>
+    
+    <!-- MarketDataManager -->
+    <text x="370" y="635" font-weight="bold" font-size="12" fill="#1976d2">MarketDataManager (market_data.py)</text>
+    <text x="370" y="650" font-size="11" fill="#333">+ set_dependencies() + load_watchlist()</text>
+    <text x="370" y="665" font-size="11" fill="#333">+ add_symbol() + remove_symbol()</text>
+    <text x="370" y="680" font-size="11" fill="#333">+ _process_market_data_message()</text>
+    
+    <!-- Routes -->
+    <text x="370" y="700" font-weight="bold" font-size="12" fill="#1976d2">Blueprint (market_data_routes.py)</text>
+    <text x="370" y="715" font-size="11" fill="#333">/api/watchlist • /api/market-data • WebSocket handlers</text>
+    
+    <line x1="360" y1="720" x2="740" y2="720" stroke="#1976d2"/>
+  </g>
+
+
+  <!-- Mock Data Framework -->
+  <g id="mock-framework">
+    <rect x="800" y="580" width="350" height="150" fill="#fce4ec" stroke="#e91e63" stroke-width="2" rx="5"/>
+    <text x="975" y="605" text-anchor="middle" font-weight="bold" font-size="14" fill="#e91e63">🎭 Mock Data Framework</text>
+    <text x="975" y="625" text-anchor="middle" font-size="12" fill="#333">mock_data.py</text>
+    <line x1="810" y1="635" x2="1140" y2="635" stroke="#e91e63"/>
+    
+    <text x="820" y="655" font-weight="bold" font-size="12" fill="#e91e63">MockSchwabClient</text>
+    <text x="820" y="670" font-size="11" fill="#333">+ stream: MockSchwabStreamer + get_quotes()</text>
+    
+    <text x="820" y="690" font-weight="bold" font-size="12" fill="#e91e63">MockMarketDataGenerator</text>
+    <text x="820" y="705" font-size="11" fill="#333">+ generate_quote() + set_market_conditions()</text>
+    <text x="820" y="720" font-size="11" fill="#333">+ simulate_market_event()</text>
+    
+    <line x1="810" y1="720" x2="1140" y2="720" stroke="#e91e63"/>
+  </g>
+
+  <!-- Data Layer -->
+  <g id="data-layer">
+    <rect x="50" y="770" width="600" height="120" fill="#f5f5f5" stroke="#616161" stroke-width="2" rx="5"/>
+    <text x="350" y="795" text-anchor="middle" font-weight="bold" font-size="14" fill="#616161">📊 Data Layer</text>
+    <line x1="60" y1="805" x2="640" y2="805" stroke="#616161"/>
+    
+    <text x="70" y="825" font-weight="bold" font-size="12" fill="#616161">SQLite Databases</text>
+    <text x="70" y="840" font-size="11" fill="#333">• market_data_YYMMDD.db (Real data)</text>
+    <text x="70" y="855" font-size="11" fill="#333">• MOCK_market_data_YYMMDD.db (Mock data)</text>
+    
+    <text x="350" y="825" font-weight="bold" font-size="12" fill="#616161">Persistent Storage</text>
+    <text x="350" y="840" font-size="11" fill="#333">• watchlist.json (User symbols)</text>
+    <text x="350" y="855" font-size="11" fill="#333">• schwab_tokens.json (OAuth tokens)</text>
+    
+    <text x="500" y="825" font-weight="bold" font-size="12" fill="#616161">Separation</text>
+    <text x="500" y="840" font-size="11" fill="#333">• MOCK_ prefix isolation</text>
+    <text x="500" y="855" font-size="11" fill="#333">• Environment-controlled</text>
+  </g>
+
+  <!-- Web Interface -->
+  <g id="web-interface">
+    <rect x="700" y="770" width="320" height="120" fill="#e1f5fe" stroke="#0277bd" stroke-width="2" rx="5"/>
+    <text x="860" y="795" text-anchor="middle" font-weight="bold" font-size="14" fill="#0277bd">🌐 Web Interface</text>
+    <line x1="710" y1="805" x2="1010" y2="805" stroke="#0277bd"/>
+    
+    <text x="720" y="825" font-weight="bold" font-size="12" fill="#0277bd">Templates</text>
+    <text x="720" y="840" font-size="11" fill="#333">• login.html • index.html</text>
+    
+    <text x="850" y="825" font-weight="bold" font-size="12" fill="#0277bd">Static Assets</text>
+    <text x="850" y="840" font-size="11" fill="#333">• market_data.js (WebSocket client)</text>
+    <text x="850" y="855" font-size="11" fill="#333">• mock_indicators.css (UI styling)</text>
+  </g>
+
+  <!-- Testing Layer -->
+  <g id="testing-layer">
+    <rect x="1070" y="770" width="280" height="120" fill="#f3e5f5" stroke="#8e24aa" stroke-width="2" rx="5"/>
+    <text x="1210" y="795" text-anchor="middle" font-weight="bold" font-size="14" fill="#8e24aa">🧪 Testing Framework</text>
+    <line x1="1080" y1="805" x2="1340" y2="805" stroke="#8e24aa"/>
+    
+    <text x="1090" y="825" font-weight="bold" font-size="12" fill="#8e24aa">test_integration.py</text>
+    <text x="1090" y="840" font-size="11" fill="#333">• MarketDataStreamingTests</text>
+    <text x="1090" y="855" font-size="11" fill="#333">• Performance validation</text>
+    <text x="1090" y="870" font-size="11" fill="#333">• Quality assurance</text>
+  </g>
+
+  <!-- External Services -->
+  <g id="external-services">
+    <rect x="50" y="920" width="1300" height="80" fill="#ffebee" stroke="#d32f2f" stroke-width="2" rx="5" stroke-dasharray="5,5"/>
+    <text x="70" y="945" font-weight="bold" font-size="14" fill="#d32f2f">🌐 External Services</text>
+    <text x="70" y="965" font-size="12" fill="#333">Schwab WebSocket API • OAuth 2.0 Endpoints • Real-time Level 1 Equity Data</text>
+    <text x="70" y="985" font-size="12" fill="#333">Field Subscriptions: Last, Bid, Ask, Volume, High, Low, Net Change, Net Change %</text>
+  </g>
+
+  <!-- Connection Lines -->
+  <!-- Environment to App -->
+  <line x1="700" y1="140" x2="700" y2="170" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- App to FeatureManager (central coordinator) -->
+  <line x1="650" y1="310" x2="250" y2="350" stroke="#4caf50" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <!-- App to Auth (for client factory) -->
+  <line x1="700" y1="310" x2="575" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- App to Streaming Infrastructure (registers as service) -->
+  <line x1="750" y1="310" x2="925" y2="350" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- FeatureManager initializes MarketData with dependency injection -->
+  <line x1="250" y1="490" x2="450" y2="580" stroke="#f9a825" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <!-- MarketData uses StreamManager (dependency injection) -->
+  <line x1="925" y1="530" x2="650" y2="580" stroke="#0097a7" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Auth provides clients to FeatureManager -->
+  <line x1="575" y1="470" x2="350" y2="490" stroke="#7b1fa2" stroke-width="2" marker-end="url(#arrowhead)" stroke-dasharray="5,5"/>
+  
+  <!-- Market Data to Data Layer and Web Interface -->
+  <line x1="450" y1="730" x2="300" y2="770" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <line x1="600" y1="730" x2="800" y2="770" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Mock Framework to Testing -->
+  <line x1="1050" y1="730" x2="1150" y2="770" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+    </marker>
+  </defs>
+
+  <!-- Flow Annotations -->
+  <text x="400" y="340" font-size="10" fill="#4caf50" font-weight="bold">Central Coordinator</text>
+  <text x="300" y="550" font-size="10" fill="#f9a825" font-weight="bold">Dependency Injection</text>
+  <text x="750" y="550" font-size="10" fill="#0097a7" font-weight="bold">Uses Infrastructure</text>
+  <text x="450" y="500" font-size="10" fill="#7b1fa2" font-style="italic">Provides Clients</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <rect x="50" y="1020" width="700" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="5"/>
+    <text x="60" y="1040" font-weight="bold" font-size="12" fill="#333">Issue #10 Modular Architecture:</text>
+    <text x="60" y="1055" font-size="11" fill="#333">🎛️ FeatureManager centralizes initialization • 🔄 Dependency injection pattern • 📦 Blueprint modularity</text>
+    <text x="60" y="1070" font-size="11" fill="#333">🌊 Generic streaming infrastructure • 🎭 Mock/Real mode isolation • ⚡ Environment-driven features</text>
+  </g>
+</svg>
